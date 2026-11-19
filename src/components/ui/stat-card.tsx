@@ -15,6 +15,7 @@ type StatCardBase = {
   status?: { tone: StatusTone; label: string };
   progress?: { value: number; max: number; tone?: StatusTone; accessibilityLabel?: string };
   hero?: boolean;
+  size?: 'lg' | 'sm';
   accessibilityLabel?: string;
 };
 
@@ -31,6 +32,7 @@ export function StatCard({
   status,
   progress,
   hero = false,
+  size = 'lg',
   accessibilityLabel,
   onPress,
   action,
@@ -44,7 +46,9 @@ export function StatCard({
     <>
       <Text style={[Typography.label, { color: theme.textMuted }]}>{label}</Text>
       <View style={styles.valueRow}>
-        <Text style={[Typography.display, styles.value, { color: theme.text }]}>{value}</Text>
+        <Text style={[Typography.display, styles.value, size === 'sm' && styles.valueSmall, { color: theme.text }]}>
+          {value}
+        </Text>
         {unit ? <Text style={[Typography.mono, styles.unit, { color: theme.textMuted }]}>{unit}</Text> : null}
       </View>
       {status || progress ? (
@@ -69,7 +73,14 @@ export function StatCard({
   );
 
   return (
-    <View style={[styles.card, hero && styles.hero, shadow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <View
+      style={[
+        styles.card,
+        size === 'sm' && styles.cardSmall,
+        hero && styles.hero,
+        shadow,
+        { backgroundColor: theme.surface, borderColor: theme.border },
+      ]}>
       {onPress ? (
         <Pressable
           onPress={onPress}
@@ -97,6 +108,9 @@ const styles = StyleSheet.create({
   hero: {
     width: '100%',
   },
+  cardSmall: {
+    padding: Spacing.md,
+  },
   pressable: {
     minHeight: 44,
   },
@@ -111,6 +125,10 @@ const styles = StyleSheet.create({
   },
   value: {
     flexShrink: 1,
+  },
+  valueSmall: {
+    fontSize: 28,
+    lineHeight: 34,
   },
   unit: {
     paddingBottom: Spacing.half,

@@ -3,12 +3,13 @@ import { useMemo, useState } from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppHeader } from '@/components/app-header';
 import { FloatingActionButton } from '@/components/floating-action-button';
 import { MechanicDetailSheet } from '@/components/mechanic/mechanic-detail-sheet';
 import { MechanicFormSheet } from '@/components/mechanic/mechanic-form-sheet';
 import { MechanicRow } from '@/components/mechanic/mechanic-row';
-import { Button, EmptyState, StatCard } from '@/components/ui';
-import { MaxContentWidth, Radius, Spacing, Typography } from '@/constants/theme';
+import { Button, EmptyState, SkeletonCard, SkeletonLine, StatCard } from '@/components/ui';
+import { MaxContentWidth, Spacing, Typography } from '@/constants/theme';
 import { useMechanicVisits } from '@/hooks/use-mechanic-visits';
 import { useTheme } from '@/hooks/use-theme';
 import { useVehicle } from '@/hooks/use-vehicle';
@@ -74,6 +75,7 @@ export default function MechanicScreen() {
   if (status === 'error') {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
+        <AppHeader title="Mechanic" vehicleName={vehicle.name} odometer={vehicle.odometer} />
         <View style={styles.centered}>
           <Text style={[Typography.title, { color: theme.text }]}>Could not load visits</Text>
           <Text style={[Typography.body, styles.message, { color: theme.textMuted }]}>{error}</Text>
@@ -85,9 +87,8 @@ export default function MechanicScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
+      <AppHeader title="Mechanic" vehicleName={vehicle.name} odometer={vehicle.odometer} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: scrollPadding }]}>
-        <Text style={[Typography.title, { color: theme.text }]}>Mechanic</Text>
-
         <StatCard
           label="Spent on visits"
           value={formatCurrency(spend.total)}
@@ -151,9 +152,9 @@ function MechanicSkeleton() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={styles.content}>
-        <View style={[styles.skeletonLine, { backgroundColor: theme.surfaceAlt }]} />
-        <View style={[styles.skeletonCard, { backgroundColor: theme.surfaceAlt }]} />
-        <View style={[styles.skeletonCard, { backgroundColor: theme.surfaceAlt }]} />
+        <SkeletonLine />
+        <SkeletonCard />
+        <SkeletonCard />
       </View>
     </SafeAreaView>
   );
@@ -180,14 +181,5 @@ const styles = StyleSheet.create({
   },
   message: {
     textAlign: 'center',
-  },
-  skeletonLine: {
-    width: '40%',
-    height: 20,
-    borderRadius: Radius.control,
-  },
-  skeletonCard: {
-    height: 100,
-    borderRadius: Radius.card,
   },
 });

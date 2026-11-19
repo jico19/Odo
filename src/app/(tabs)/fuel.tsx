@@ -3,44 +3,84 @@ import { useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppHeader } from '@/components/app-header';
 import { FloatingActionButton } from '@/components/floating-action-button';
-import { FuelEfficiencyCard } from '@/components/fuel/fuel-efficiency-card';
+import { FilterChips, type FuelFilter } from '@/components/fuel/filter-chips';
 import { FuelFormSheet } from '@/components/fuel/fuel-form-sheet';
-import { FuelSpendCard } from '@/components/fuel/fuel-spend-card';
-import { Button, EmptyState, ListRow } from '@/components/ui';
+import { FuelHeroCard } from '@/components/fuel/fuel-hero-card';
+import { FuelLogCard } from '@/components/fuel/fuel-log-card';
+import { QuickEntryDrawer } from '@/components/fuel/quick-entry-drawer';
+import { Button, EmptyState, SkeletonCard, SkeletonLine } from '@/components/ui';
 import { MaxContentWidth, Radius, Spacing, Typography } from '@/constants/theme';
 import { useFuelLogs } from '@/hooks/use-fuel-logs';
 import { useTheme } from '@/hooks/use-theme';
+import { useToday } from '@/hooks/use-today';
 import { useVehicle } from '@/hooks/use-vehicle';
 import type { FuelLog, NewFuelLog } from '@/types/fuel';
-import { calculateFuelStats, getFuelLogCost } from '@/utils/calculations';
-import { formatCurrency, formatDateShort, formatNumber, formatOdometer } from '@/utils/format';
-
-type Editor = FuelLog | 'new' | null;
+import {
+  calculateFuelStats,
+  getEfficiencyTrendPercent,
+  getFuelLogCost,
+  getLogEfficiencies,
+  roundTo,
+} from '@/utils/calculations';
 
 export default function FuelScreen() {
   const theme = useTheme();
   const { status: vehicleStatus, vehicle } = useVehicle();
   const { status, logs, error, retry, create, update } = useFuelLogs(vehicle?.id ?? 0);
-  const [editor, setEditor] = useState<Editor>(null);
-  const stats = useMemo(() => calculateFuelStats(logs), [logs]);
+  const [editor, setEditor] = useState<FuelLog | null>(null);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [filter, setFilter] = useState<FuelFilter>('all');
+  const today = useToday();
   const insets = useSafeAreaInsets();
   const fabBottom = Platform.OS === 'web' ? Spacing.six + Spacing.two : insets.bottom + Spacing.two;
   const scrollPadding = fabBottom + Spacing.six + Spacing.three;
+
+  const stats = useMemo(() => calculateFuelStats(logs), [logs]);
+  const trend = useMemo(() => getEfficiencyTrendPercent(stats, today), [stats, today]);
+  const efficiencies = useMemo(() => getLogEfficiencies(stats, logs), [stats, logs]);
+  const monthlyLiters = useMemo(
+    () =>
+      logs
+        .filter((log) => log.date.slice(0, 7) === today.slice(0, 7))
+        .reduce((sum, log) => sum + log.liters, 0),
+    [logs, today]
+  );
+  const filteredLogs = useMemo(
+    () => (filter === 'all' ? logs : logs.filter((log) => log.fullTank === (filter === 'full'))),
+    [logs, filter]
+  );
+  const trough = useMemo(
+    () => ({
+      lastFillCost: logs[0] === undefined ? null : getFuelLogCost(logs[0]),
+      lastFillLiters: logs[0]?.liters ?? null,
+      costPerKm: stats.costPerKm,
+      monthlySpend: stats.monthlySpend,
+      monthlyLiters: roundTo(monthlyLiters, 1),
+    }),
+    [logs, stats.costPerKm, stats.monthlySpend, monthlyLiters]
+  );
 
   if (vehicleStatus === 'loading' || status === 'loading') return <FuelSkeleton />;
   if (vehicle === null) return <Redirect href="/onboarding" />;
 
   function handleSave(input: NewFuelLog) {
     if (editor === null) return;
-    if (editor === 'new') create(input);
-    else update(editor.id, input);
+    update(editor.id, input);
     setEditor(null);
+  }
+
+  function handleQuickSave(input: NewFuelLog) {
+    create(input);
+    setQuickOpen(false);
+    setFilter('all');
   }
 
   if (status === 'error') {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
+        <AppHeader title="Fuel Log" vehicleName={vehicle.name} odometer={vehicle.odometer} />
         <View style={styles.centered}>
           <Text style={[Typography.title, { color: theme.text }]}>Could not load fuel logs</Text>
           <Text style={[Typography.body, styles.message, { color: theme.textMuted }]}>{error}</Text>
@@ -52,45 +92,60 @@ export default function FuelScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
+      <AppHeader title="Fuel Log" vehicleName={vehicle.name} odometer={vehicle.odometer} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: scrollPadding }]}>
-        <Text style={[Typography.title, { color: theme.text }]}>Fuel</Text>
+        <FuelHeroCard
+          average={stats.averageKmPerLiter}
+          series={stats.kmPerLiterSeries}
+          trend={trend}
+          trough={trough}
+        />
 
-        <FuelEfficiencyCard average={stats.averageKmPerLiter} series={stats.kmPerLiterSeries} />
-        <FuelSpendCard monthlySpend={stats.monthlySpend} series={stats.monthlySpendSeries} />
+        <FilterChips value={filter} onChange={setFilter} totalCount={logs.length} />
 
-        <Text style={[Typography.label, styles.sectionTitle, { color: theme.textMuted }]}>
-          History
-        </Text>
+        <View style={styles.feedHeader}>
+          <Text style={[Typography.label, { color: theme.textMuted }]}>Telemetric Log Feed</Text>
+          <Text style={[Typography.label, styles.sort, { color: theme.textMuted }]}>SORT: NEWEST</Text>
+        </View>
+
         {logs.length === 0 ? (
           <EmptyState
-            icon="water-outline"
+            icon="car-sport-outline"
             message="No fuel logs yet."
             actionLabel="Log your first fill-up"
-            onAction={() => setEditor('new')}
+            onAction={() => setQuickOpen(true)}
           />
+        ) : filteredLogs.length === 0 ? (
+          <Text style={[Typography.body, styles.noMatches, { color: theme.textMuted }]}>
+            No {filter === 'full' ? 'full-tank' : 'partial'} fills yet.
+          </Text>
         ) : (
-          <View>
-            {logs.map((log, index) => (
-              <ListRow
+          <View style={styles.feed}>
+            {filteredLogs.map((log) => (
+              <FuelLogCard
                 key={log.id}
-                icon="water-outline"
-                title={`${formatNumber(log.liters, 1)} L · ${log.fullTank ? 'Full' : 'Partial'}`}
-                subtitle={`${formatOdometer(log.odometer ?? 0)} km · ${formatNumber(log.pricePerLiter ?? 0, 2)} ₱/L`}
-                value={formatCurrency(getFuelLogCost(log))}
-                date={formatDateShort(log.date)}
+                log={log}
+                efficiency={efficiencies.get(log.id) ?? null}
                 onPress={() => setEditor(log)}
-                divider={index < logs.length - 1}
               />
             ))}
           </View>
         )}
       </ScrollView>
 
-      <FloatingActionButton bottom={fabBottom} label="Add fuel log" onPress={() => setEditor('new')} />
+      <FloatingActionButton bottom={fabBottom} label="Add fuel log" onPress={() => setQuickOpen(true)} />
+
+      {quickOpen ? (
+        <QuickEntryDrawer
+          defaultOdometer={vehicle.odometer}
+          onClose={() => setQuickOpen(false)}
+          onSave={handleQuickSave}
+        />
+      ) : null}
 
       {editor !== null ? (
         <FuelFormSheet
-          initialLog={editor === 'new' ? null : editor}
+          initialLog={editor}
           onClose={() => setEditor(null)}
           onSave={handleSave}
         />
@@ -104,10 +159,14 @@ function FuelSkeleton() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
+      <View style={styles.skeletonHeader}>
+        <SkeletonLine />
+      </View>
       <View style={styles.content}>
-        <View style={[styles.skeletonLine, { backgroundColor: theme.surfaceAlt }]} />
-        <View style={[styles.skeletonCard, { backgroundColor: theme.surfaceAlt }]} />
-        <View style={[styles.skeletonCard, { backgroundColor: theme.surfaceAlt }]} />
+        <SkeletonCard height={260} />
+        <View style={[styles.skeletonChip, { backgroundColor: theme.surfaceAlt }]} />
+        <View style={[styles.skeletonRow, { backgroundColor: theme.surfaceAlt }]} />
+        <View style={[styles.skeletonRow, { backgroundColor: theme.surfaceAlt }]} />
       </View>
     </SafeAreaView>
   );
@@ -122,11 +181,26 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
     paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.four,
+    paddingTop: Spacing.three,
     gap: Spacing.three,
   },
-  sectionTitle: {
-    marginTop: Spacing.two,
+  feedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+    marginTop: Spacing.half,
+  },
+  sort: {
+    fontSize: 10,
+    letterSpacing: 0.4,
+  },
+  feed: {
+    gap: Spacing.two,
+  },
+  noMatches: {
+    textAlign: 'center',
+    paddingVertical: Spacing.four,
   },
   centered: {
     flex: 1,
@@ -138,13 +212,20 @@ const styles = StyleSheet.create({
   message: {
     textAlign: 'center',
   },
-  skeletonLine: {
-    width: '40%',
-    height: 20,
-    borderRadius: Radius.control,
+  skeletonHeader: {
+    height: 64,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three,
+    borderBottomWidth: 1,
+    borderBottomColor: 'transparent',
   },
-  skeletonCard: {
-    height: 200,
+  skeletonChip: {
+    width: '55%',
+    height: 44,
+    borderRadius: Radius.pill,
+  },
+  skeletonRow: {
+    height: 96,
     borderRadius: Radius.card,
   },
 });

@@ -1,16 +1,19 @@
 import { Redirect, router } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { NextExpiringCard } from '@/components/documents/next-expiring-card';
-import { FuelEfficiencyCard } from '@/components/fuel/fuel-efficiency-card';
-import { FuelSpendCard } from '@/components/fuel/fuel-spend-card';
-import { LastFuelUpCard } from '@/components/fuel/last-fuel-up-card';
+import { AppHeader } from '@/components/app-header';
+import { CorridorCard } from '@/components/dashboard/corridor-card';
+import { GaugeHero } from '@/components/dashboard/gauge-hero';
+import { TelemetryTiles } from '@/components/dashboard/telemetry-tiles';
+import { ComplianceCard } from '@/components/documents/compliance-card';
+import { QuickEntryDrawer } from '@/components/fuel/quick-entry-drawer';
+import { MaintenanceFormSheet } from '@/components/maintenance/maintenance-form-sheet';
 import { MaintenanceRow } from '@/components/maintenance/maintenance-row';
-import { LastMechanicVisitCard } from '@/components/mechanic/last-mechanic-visit-card';
+import { QuickAddRow } from '@/components/quick-add-row';
 import { UpdateOdometerSheet } from '@/components/update-odometer-sheet';
-import { Button, StatCard } from '@/components/ui';
+import { Button, EmptyState, ListRow, SkeletonLine } from '@/components/ui';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing, Typography } from '@/constants/theme';
 import { useDocuments } from '@/hooks/use-documents';
 import { useFuelLogs } from '@/hooks/use-fuel-logs';
@@ -18,29 +21,52 @@ import { useMaintenanceLogs } from '@/hooks/use-maintenance';
 import { useMechanicVisits } from '@/hooks/use-mechanic-visits';
 import { useTheme } from '@/hooks/use-theme';
 import { useToday } from '@/hooks/use-today';
+import { useTrips } from '@/hooks/use-trips';
 import { useVehicle } from '@/hooks/use-vehicle';
+import type { NewMaintenanceLog } from '@/types/maintenance';
+import type { Trip } from '@/types/trip';
 import {
   calculateFuelStats,
+  getBestEfficiency,
   getDueInfo,
+  getEfficiencyTrend,
+  getFuelLogCost,
   getMaintenanceProgress,
+  getTodayRideStats,
   getUpcoming,
 } from '@/utils/calculations';
-import { formatOdometer } from '@/utils/format';
+import {
+  formatCurrency,
+  formatDateShort,
+  formatDuration,
+  formatNumber,
+  formatOdometer,
+} from '@/utils/format';
+
+type Editor = 'maintenance' | null;
 
 export default function DashboardScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const narrow = width < 360;
+  const wide = width >= 700;
+  const paired = width >= 640;
+
   const { status, vehicle, updateOdometer } = useVehicle();
   const {
     status: fuelStatus,
     logs,
     error: fuelError,
     retry: retryFuel,
+    create: createFuel,
   } = useFuelLogs(vehicle?.id ?? 0);
   const {
     status: maintenanceStatus,
     logs: maintenanceLogs,
     error: maintenanceError,
     retry: retryMaintenance,
+    create: createService,
   } = useMaintenanceLogs(vehicle?.id ?? 0);
   const { status: documentStatus, documents } = useDocuments();
   const {
@@ -49,128 +75,189 @@ export default function DashboardScreen() {
     error: mechanicError,
     retry: retryMechanic,
   } = useMechanicVisits(vehicle?.id ?? 0);
+  const {
+    status: tripStatus,
+    trips,
+    routes,
+    error: tripError,
+    refresh: refreshTrips,
+  } = useTrips(vehicle?.id ?? 0);
   const today = useToday();
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [quickFuelOpen, setQuickFuelOpen] = useState(false);
+  const [editor, setEditor] = useState<Editor>(null);
   const stats = useMemo(() => calculateFuelStats(logs), [logs]);
   const upcoming = useMemo(
     () => getUpcoming(maintenanceLogs, vehicle?.odometer ?? 0, today),
     [maintenanceLogs, vehicle?.odometer, today]
   );
-  const nextDocument = useMemo(() => {
-    const active = documents.filter((document) => !document.superseded);
-    return active.reduce<typeof active[number] | null>(
-      (soonest, document) =>
-        soonest === null || document.expiryDate < soonest.expiryDate ? document : soonest,
-      null
-    );
-  }, [documents]);
+  const efficiencyTrend = useMemo(() => getEfficiencyTrend(stats, today), [stats, today]);
+  const bestEfficiency = useMemo(() => getBestEfficiency(stats), [stats]);
+  const todayRide = useMemo(() => getTodayRideStats(trips, today), [trips, today]);
 
-  if (
+  const loading =
     status === 'loading' ||
     fuelStatus === 'loading' ||
     maintenanceStatus === 'loading' ||
     documentStatus === 'loading' ||
-    mechanicStatus === 'loading'
-  ) {
-    return <DashboardSkeleton />;
-  }
+    mechanicStatus === 'loading' ||
+    (vehicle !== null && tripStatus === 'loading');
+
+  if (loading) return <DashboardSkeleton />;
   if (vehicle === null) return <Redirect href="/onboarding" />;
 
   const nextService = upcoming[0] ?? null;
   const nextDue = nextService === null ? null : getDueInfo(nextService, vehicle.odometer, today);
   const nextProgress =
     nextService === null ? null : getMaintenanceProgress(nextService, vehicle.odometer, today);
-  const nextValue =
-    nextDue === null ? 'None' : formatOdometer(Math.max(nextDue.kmLeft ?? nextDue.daysLeft ?? 0, 0));
-  const nextUnit = nextDue === null ? undefined : nextDue.kmLeft === null ? 'days' : 'km';
+  const remainingServices = upcoming.slice(1);
+  const lastFuel = logs[0] ?? null;
+  const lastVisit = mechanicVisits[0] ?? null;
+  const lastTrip = trips[0] ?? null;
+  const tripPoints = lastTrip === null ? [] : routes.get(lastTrip.id) ?? [];
+  const hasErrors =
+    fuelError !== null ||
+    maintenanceError !== null ||
+    mechanicError !== null ||
+    tripError !== null;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <Text style={[Typography.label, { color: theme.textMuted }]}>Current bike</Text>
-          <Text style={[Typography.title, { color: theme.text }]}>{vehicle.name}</Text>
-          <Text style={[Typography.body, { color: theme.textMuted }]}>
-            {vehicle.plate ?? 'No plate added'}
-          </Text>
-        </View>
+      <AppHeader
+        title="Dashboard"
+        vehicleName={vehicle.name}
+        odometer={vehicle.odometer}
+        subtitle={`${vehicle.plate ?? 'No plate added'} · ${formatOdometer(vehicle.odometer)} km`}
+      />
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          narrow && styles.contentNarrow,
+          {
+            paddingBottom:
+              Platform.OS === 'web' ? BottomTabInset + Spacing.four : insets.bottom + Spacing.four,
+          },
+        ]}>
+        {hasErrors ? (
+          <View style={styles.errors}>
+            {fuelError !== null ? <ErrorRow message={fuelError} onRetry={retryFuel} /> : null}
+            {maintenanceError !== null ? (
+              <ErrorRow message={maintenanceError} onRetry={retryMaintenance} />
+            ) : null}
+            {mechanicError !== null ? (
+              <ErrorRow message={mechanicError} onRetry={retryMechanic} />
+            ) : null}
+            {tripError !== null ? <ErrorRow message={tripError} onRetry={refreshTrips} /> : null}
+          </View>
+        ) : null}
 
-        <StatCard
-          hero
-          label="Odometer"
-          value={formatOdometer(vehicle.odometer)}
-          unit="km"
-          accessibilityLabel={`Odometer ${formatOdometer(vehicle.odometer)} kilometers`}
-          action={{ label: 'Update', onPress: () => setSheetVisible(true) }}
+        <SectionTitle>Telemetry gauges</SectionTitle>
+        <GaugeHero
+          odometer={vehicle.odometer}
+          serviceDue={nextDue}
+          serviceProgress={nextProgress}
+          efficiency={stats.averageKmPerLiter}
+          bestEfficiency={bestEfficiency}
+          trend={efficiencyTrend}
+          columns={paired ? 2 : 1}
+          onUpdateOdometer={() => setSheetVisible(true)}
         />
 
-        {fuelError !== null ? (
-          <View style={styles.errorRow}>
-            <Text style={[Typography.body, { color: theme.dangerInk }]}>{fuelError}</Text>
-            <Button label="Retry" variant="ghost" onPress={retryFuel} />
-          </View>
-        ) : null}
-        {maintenanceError !== null ? (
-          <View style={styles.errorRow}>
-            <Text style={[Typography.body, { color: theme.dangerInk }]}>{maintenanceError}</Text>
-            <Button label="Retry" variant="ghost" onPress={retryMaintenance} />
-          </View>
-        ) : null}
-        {mechanicError !== null ? (
-          <View style={styles.errorRow}>
-            <Text style={[Typography.body, { color: theme.dangerInk }]}>{mechanicError}</Text>
-            <Button label="Retry" variant="ghost" onPress={retryMechanic} />
-          </View>
-        ) : null}
+        <SectionTitle>Quick telemetry</SectionTitle>
+        <TelemetryTiles
+          efficiency={stats.averageKmPerLiter}
+          trend={efficiencyTrend}
+          lastService={maintenanceLogs[0] ?? null}
+          ride={todayRide}
+          columns={paired ? 3 : 1}
+        />
 
-        <Text style={[Typography.label, styles.sectionTitle, { color: theme.textMuted }]}>
-          Fuel snapshot
-        </Text>
-        <View style={styles.grid}>
-          <View style={styles.gridItemFull}>
-            <FuelEfficiencyCard average={stats.averageKmPerLiter} series={stats.kmPerLiterSeries} />
-          </View>
-          <View style={styles.gridItemFull}>
-            <FuelSpendCard monthlySpend={stats.monthlySpend} series={stats.monthlySpendSeries} />
-          </View>
-          <View style={styles.gridItemFull}>
-            <LastFuelUpCard log={logs[0] ?? null} />
-          </View>
-          <View style={styles.gridItemFull}>
-            <NextExpiringCard document={nextDocument} today={today} />
-          </View>
-          <View style={styles.gridItemFull}>
-            <LastMechanicVisitCard visit={mechanicVisits[0] ?? null} />
-          </View>
-        </View>
-
-        <Text style={[Typography.label, styles.sectionTitle, { color: theme.textMuted }]}>
-          Upcoming maintenance
-        </Text>
-        <StatCard
-          label="Next service"
-          value={nextValue}
-          unit={nextUnit}
-          status={nextDue === null ? undefined : { tone: nextDue.status, label: nextDue.status === 'overdue' ? 'OVERDUE' : nextDue.status === 'dueSoon' ? 'DUE SOON' : 'OK' }}
-          progress={
-            nextProgress === null
-              ? undefined
-              : {
-                  value: nextProgress.value,
-                  max: nextProgress.max,
-                  tone: nextProgress.tone,
-                  accessibilityLabel: `Next service ${nextProgress.basis === 'km' ? 'kilometer' : 'date'} progress`,
-                }
-          }
+        <ComplianceCard
+          documents={documents}
+          today={today}
           onPress={() => router.push('/maintenance')}
         />
-        {upcoming.length === 0 ? (
-          <Text style={[Typography.body, { color: theme.textMuted }]}>
-            No service due. Add a due km or date in Maintenance.
-          </Text>
+
+        <QuickAddRow
+          onLogFuel={() => setQuickFuelOpen(true)}
+          onAddService={() => setEditor('maintenance')}
+          onStartTrip={() => router.push('/trips')}
+        />
+
+        <CorridorCard
+          trip={lastTrip}
+          points={tripPoints}
+          onPress={() => router.push('/trips')}
+        />
+
+        <SectionTitle>Recent</SectionTitle>
+        <TileGrid
+          columns={wide ? 3 : 1}
+          tiles={[
+            <ListRow
+              key="last-fuel"
+              icon="water-outline"
+              title="Last fuel-up"
+              subtitle={
+                lastFuel === null
+                  ? 'No fuel logged yet'
+                  : `${formatNumber(lastFuel.liters, 1)} L · ${formatOdometer(lastFuel.odometer ?? 0)} km · ${lastFuel.fullTank ? 'Full tank' : 'Partial'}`
+              }
+              value={lastFuel === null ? undefined : formatCurrency(getFuelLogCost(lastFuel))}
+              date={lastFuel === null ? undefined : formatDateShort(lastFuel.date)}
+              onPress={() => router.push('/fuel')}
+              divider={!wide}
+            />,
+            <ListRow
+              key="last-visit"
+              icon="construct-outline"
+              title="Mechanic visit"
+              subtitle={
+                lastVisit === null
+                  ? 'No visits logged yet'
+                  : [lastVisit.shop?.trim() || 'Unspecified shop', lastVisit.workDone]
+                      .filter((part): part is string => typeof part === 'string' && part.length > 0)
+                      .join(' · ')
+              }
+              value={
+                lastVisit?.cost === null || lastVisit === null
+                  ? undefined
+                  : formatCurrency(lastVisit.cost)
+              }
+              date={lastVisit === null ? undefined : formatDateShort(lastVisit.date)}
+              onPress={() => router.push('/mechanic')}
+              divider={!wide}
+            />,
+            <ListRow
+              key="last-trip"
+              icon="map-outline"
+              title="Last trip"
+              subtitle={tripSubtitle(lastTrip)}
+              value={
+                lastTrip?.distanceKm === null || lastTrip === null
+                  ? undefined
+                  : `${formatNumber(lastTrip.distanceKm, 1)} km`
+              }
+              date={lastTrip === null ? undefined : formatDateShort(lastTrip.startedAt.slice(0, 10))}
+              onPress={() => router.push('/trips')}
+              divider={false}
+            />,
+          ]}
+        />
+
+        <SectionTitle>Upcoming maintenance</SectionTitle>
+        {remainingServices.length === 0 ? (
+          <EmptyState
+            icon="construct-outline"
+            message={
+              upcoming.length === 0
+                ? 'No service due. Add a due km or date in Maintenance.'
+                : 'No other service due right now.'
+            }
+          />
         ) : (
           <View style={styles.list}>
-            {upcoming.map((log) => (
+            {remainingServices.map((log) => (
               <MaintenanceRow
                 key={log.id}
                 log={log}
@@ -190,19 +277,95 @@ export default function DashboardScreen() {
           onSave={(next) => updateOdometer(vehicle.id, next)}
         />
       ) : null}
+
+      {quickFuelOpen ? (
+        <QuickEntryDrawer
+          defaultOdometer={vehicle.odometer}
+          onClose={() => setQuickFuelOpen(false)}
+          onSave={(input) => {
+            createFuel(input);
+            setQuickFuelOpen(false);
+          }}
+        />
+      ) : null}
+      {editor === 'maintenance' ? (
+        <MaintenanceFormSheet
+          initialLog={null}
+          onClose={() => setEditor(null)}
+          onDelete={() => setEditor(null)}
+          onSave={(input: NewMaintenanceLog) => {
+            createService(input);
+            setEditor(null);
+          }}
+        />
+      ) : null}
     </SafeAreaView>
+  );
+}
+
+function tripSubtitle(trip: Trip | null): string {
+  if (trip === null) return 'No trips yet';
+  if (trip.endedAt === null) return 'In progress';
+  return formatDuration((Date.parse(trip.endedAt) - Date.parse(trip.startedAt)) / 1000);
+}
+
+function SectionTitle({ children }: { children: string }) {
+  const theme = useTheme();
+
+  return (
+    <Text style={[Typography.label, styles.sectionTitle, { color: theme.textMuted }]}>{children}</Text>
+  );
+}
+
+function ErrorRow({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const theme = useTheme();
+
+  return (
+    <View style={styles.errorRow}>
+      <Text style={[Typography.body, { color: theme.dangerInk }]}>{message}</Text>
+      <Button label="Retry" variant="ghost" onPress={onRetry} />
+    </View>
+  );
+}
+
+function TileGrid({ columns, tiles }: { columns: number; tiles: ReactNode[] }) {
+  const rows: ReactNode[][] = [];
+  for (let index = 0; index < tiles.length; index += columns) {
+    rows.push(tiles.slice(index, index + columns));
+  }
+
+  return (
+    <View style={styles.grid}>
+      {rows.map((row, rowIndex) => (
+        <View key={rowIndex} style={columns === 1 ? styles.gridStack : styles.gridRow}>
+          {row.map((tile, tileIndex) => (
+            <View key={tileIndex} style={styles.gridItem}>
+              {tile}
+            </View>
+          ))}
+        </View>
+      ))}
+    </View>
   );
 }
 
 function DashboardSkeleton() {
   const theme = useTheme();
+  const { width } = useWindowDimensions();
+  const paired = width >= 640;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={styles.content}>
-        <View style={[styles.skeletonLine, { backgroundColor: theme.surfaceAlt }]} />
-        <View style={[styles.skeletonHero, { backgroundColor: theme.surfaceAlt }]} />
-        <View style={[styles.skeletonLine, styles.skeletonShort, { backgroundColor: theme.surfaceAlt }]} />
+        <SkeletonLine width="40%" />
+        <SkeletonLine width="100%" />
+        <View style={[styles.skeletonGauge, { backgroundColor: theme.surfaceAlt }]} />
+        {paired ? (
+          <View style={[styles.skeletonGauge, { backgroundColor: theme.surfaceAlt }]} />
+        ) : null}
+        <View style={[styles.skeletonTile, { backgroundColor: theme.surfaceAlt }]} />
+        <View style={[styles.skeletonQuick, { backgroundColor: theme.surfaceAlt }]} />
+        <View style={[styles.skeletonCorridor, { backgroundColor: theme.surfaceAlt }]} />
       </View>
     </SafeAreaView>
   );
@@ -218,14 +381,19 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.four,
-    paddingBottom: Platform.OS === 'web' ? BottomTabInset + Spacing.four : Spacing.four,
+    paddingBottom: Spacing.four,
     gap: Spacing.three,
   },
-  header: {
-    gap: Spacing.two,
+  contentNarrow: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.three,
+    gap: Spacing.md,
   },
   sectionTitle: {
     marginTop: Spacing.two,
+  },
+  errors: {
+    gap: Spacing.two,
   },
   errorRow: {
     gap: Spacing.two,
@@ -234,22 +402,33 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: Spacing.md,
   },
-  gridItemFull: {
-    width: '100%',
+  gridRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
   },
-  skeletonLine: {
-    height: 20,
+  gridStack: {
+    gap: Spacing.two,
+  },
+  gridItem: {
+    flex: 1,
+    minWidth: 0,
+  },
+  skeletonGauge: {
+    height: 240,
+    borderRadius: Radius.card,
+  },
+  skeletonTile: {
+    height: 120,
+    borderRadius: Radius.card,
+  },
+  skeletonQuick: {
+    height: 56,
     borderRadius: Radius.control,
   },
-  skeletonShort: {
-    width: '50%',
-  },
-  skeletonHero: {
-    height: 140,
+  skeletonCorridor: {
+    height: 200,
     borderRadius: Radius.card,
   },
 });

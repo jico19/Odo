@@ -3,6 +3,7 @@ import type { DocumentStatus } from '@/types/document';
 import type { FuelLog } from '@/types/fuel';
 import type { MechanicVisit } from '@/types/mechanic';
 import type { MaintenanceLog } from '@/types/maintenance';
+import type { Trip } from '@/types/trip';
 
 export type ChartPoint = {
   label: string;
@@ -39,6 +40,28 @@ export function getTripDurationSeconds(
   const start = Date.parse(startedAt);
   if (!Number.isFinite(start) || !Number.isFinite(end)) return 0;
   return Math.max(0, (end - start) / 1000);
+}
+
+export type TodayRideStats = {
+  distanceKm: number;
+  durationSeconds: number;
+  count: number;
+};
+
+export function getTodayRideStats(trips: Trip[], today: string, now: Date = new Date()): TodayRideStats {
+  const todayTrips = trips.filter((trip) => trip.startedAt.slice(0, 10) === today);
+
+  return {
+    distanceKm: roundTo(
+      todayTrips.reduce((sum, trip) => sum + (trip.distanceKm ?? 0), 0),
+      1
+    ),
+    durationSeconds: todayTrips.reduce(
+      (sum, trip) => sum + getTripDurationSeconds(trip.startedAt, trip.endedAt, now),
+      0
+    ),
+    count: todayTrips.length,
+  };
 }
 
 export function roundTo(value: number, digits: number): number {
@@ -156,6 +179,51 @@ export function calculateFuelStats(logs: FuelLog[], now: Date = new Date()): Fue
     })),
     monthlySpendSeries: buildMonthlySpendSeries(chronological, now),
   };
+}
+
+function getMonthlyEfficiencyAverages(
+  stats: FuelStats,
+  today: string
+): { recent: number | null; previous: number | null } {
+  const average = (fromAge: number, toAge: number): number | null => {
+    const matching = stats.segments.filter((segment) => {
+      const age = daysBetween(segment.toDate, today);
+      return age >= fromAge && age < toAge;
+    });
+    if (matching.length === 0) return null;
+    return matching.reduce((sum, segment) => sum + segment.kmPerLiter, 0) / matching.length;
+  };
+
+  return { recent: average(0, 30), previous: average(30, 60) };
+}
+
+export function getEfficiencyTrend(stats: FuelStats, today: string): number | null {
+  const { recent, previous } = getMonthlyEfficiencyAverages(stats, today);
+  if (recent === null || previous === null) return null;
+  return roundTo(recent - previous, 1);
+}
+
+export function getEfficiencyTrendPercent(stats: FuelStats, today: string): number | null {
+  const { recent, previous } = getMonthlyEfficiencyAverages(stats, today);
+  if (recent === null || previous === null || previous === 0) return null;
+  return roundTo(((recent - previous) / previous) * 100, 1);
+}
+
+export function getLogEfficiencies(stats: FuelStats, logs: FuelLog[]): Map<number, number> {
+  const chronological = [...logs].sort(compareAscending);
+  const byId = new Map<number, number>();
+  for (const segment of stats.segments) {
+    const log = chronological[segment.endIndex];
+    if (log !== undefined) byId.set(log.id, roundTo(segment.kmPerLiter, 1));
+  }
+  return byId;
+}
+
+export function getBestEfficiency(stats: FuelStats): number | null {
+  return stats.segments.reduce<number | null>(
+    (best, segment) => (best === null ? segment.kmPerLiter : Math.max(best, segment.kmPerLiter)),
+    null
+  );
 }
 
 export const SOON_KM = 200;

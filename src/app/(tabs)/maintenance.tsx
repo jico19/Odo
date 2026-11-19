@@ -3,6 +3,7 @@ import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-nativ
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMemo, useState } from 'react';
 
+import { AppHeader } from '@/components/app-header';
 import { DocumentFormSheet } from '@/components/documents/document-form-sheet';
 import { DocumentsPanel } from '@/components/documents/documents-panel';
 import { RenewSheet } from '@/components/documents/renew-sheet';
@@ -10,8 +11,8 @@ import { FloatingActionButton } from '@/components/floating-action-button';
 import { MaintenanceFormSheet } from '@/components/maintenance/maintenance-form-sheet';
 import { MaintenanceRow, maintenanceIcon } from '@/components/maintenance/maintenance-row';
 import { SegmentedTabs } from '@/components/maintenance/segmented-tabs';
-import { Button, EmptyState, ListRow } from '@/components/ui';
-import { MaxContentWidth, Radius, Spacing, Typography } from '@/constants/theme';
+import { Button, EmptyState, ListRow, SkeletonCard, SkeletonLine } from '@/components/ui';
+import { MaxContentWidth, Spacing, Typography } from '@/constants/theme';
 import { useDocuments } from '@/hooks/use-documents';
 import { useMaintenanceLogs } from '@/hooks/use-maintenance';
 import { useTheme } from '@/hooks/use-theme';
@@ -108,6 +109,7 @@ export default function MaintenanceScreen() {
   if (status === 'error') {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
+        <AppHeader title="Maintenance" vehicleName={vehicle.name} odometer={vehicle.odometer} />
         <View style={styles.centered}>
           <Text style={[Typography.title, { color: theme.text }]}>Could not load service records</Text>
           <Text style={[Typography.body, styles.message, { color: theme.textMuted }]}>{error}</Text>
@@ -119,8 +121,8 @@ export default function MaintenanceScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
+      <AppHeader title="Maintenance" vehicleName={vehicle.name} odometer={vehicle.odometer} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: scrollPadding }]}>
-        <Text style={[Typography.title, { color: theme.text }]}>Maintenance</Text>
         <SegmentedTabs options={TABS} value={tab} onChange={setTab} />
 
         {tab === 'documents' ? (
@@ -237,9 +239,9 @@ function MaintenanceSkeleton() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={styles.content}>
-        <View style={[styles.skeletonLine, { backgroundColor: theme.surfaceAlt }]} />
-        <View style={[styles.skeletonCard, { backgroundColor: theme.surfaceAlt }]} />
-        <View style={[styles.skeletonCard, { backgroundColor: theme.surfaceAlt }]} />
+        <SkeletonLine />
+        <SkeletonCard />
+        <SkeletonCard />
       </View>
     </SafeAreaView>
   );
@@ -269,14 +271,5 @@ const styles = StyleSheet.create({
   },
   message: {
     textAlign: 'center',
-  },
-  skeletonLine: {
-    width: '40%',
-    height: 20,
-    borderRadius: Radius.control,
-  },
-  skeletonCard: {
-    height: 100,
-    borderRadius: Radius.card,
   },
 });

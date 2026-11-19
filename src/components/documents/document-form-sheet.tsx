@@ -1,11 +1,10 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Button, DateField, Input } from '@/components/ui';
-import { ControlHeight, MaxContentWidth, Radius, Spacing, Typography } from '@/constants/theme';
+import { BottomSheet, Button, DateField, Input } from '@/components/ui';
+import { ControlHeight, Radius, Spacing, Typography } from '@/constants/theme';
 import { localDateKey } from '@/hooks/use-today';
 import { useTheme } from '@/hooks/use-theme';
 import type { Document, DocumentDraft, NewDocument } from '@/types/document';
@@ -114,172 +113,129 @@ export function DocumentFormSheet({
   }
 
   return (
-    <Modal
-      visible
-      transparent
-      animationType="slide"
-      presentationStyle="overFullScreen"
-      onRequestClose={onClose}
-      accessibilityViewIsModal>
-      <View style={styles.backdrop}>
-        <Pressable
-          style={styles.dismissArea}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Close document form"
-        />
-        <View
-          style={[styles.sheet, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <SafeAreaView edges={['bottom']}>
-            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-              <Text style={[Typography.title, { color: theme.text }]}>
-                {initialDocument === null ? 'Add document' : 'Edit document'}
-              </Text>
+    <BottomSheet onClose={onClose} dismissLabel="Close document form">
+      <Text style={[Typography.title, { color: theme.text }]}>
+        {initialDocument === null ? 'Add document' : 'Edit document'}
+      </Text>
 
-              <View style={styles.field}>
-                <Text style={[Typography.label, { color: theme.textMuted }]}>Type</Text>
-                <View style={styles.chips}>
-                  {DOCUMENT_TYPES.map((type) => {
-                    const selected = draft.type === type;
-                    return (
-                      <Pressable
-                        key={type}
-                        onPress={() => update('type', type)}
-                        accessibilityRole="button"
-                        accessibilityLabel={DOCUMENT_LABELS[type]}
-                        accessibilityState={{ selected }}
-                        style={[
-                          styles.chip,
-                          {
-                            backgroundColor: selected ? theme.accentSoft : theme.surfaceAlt,
-                            borderColor: selected ? theme.accent : theme.border,
-                          },
-                        ]}>
-                        <Text
-                          style={[
-                            Typography.body,
-                            styles.chipText,
-                            { color: selected ? theme.accentInk : theme.text },
-                          ]}>
-                          {DOCUMENT_LABELS[type]}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-
-              <Input
-                label="Name or number"
-                value={draft.name}
-                onChangeText={(value) => update('name', value)}
-                placeholder="Optional"
-              />
-              <DateField
-                label="Issue date"
-                value={draft.issueDate}
-                onChange={(value) => update('issueDate', value)}
-                error={errors.issueDate}
-                clearable
-              />
-              <DateField
-                label="Expiry date"
-                value={draft.expiryDate}
-                onChange={(value) => update('expiryDate', value)}
-                error={errors.expiryDate}
-              />
-              <Input
-                label="Renewal cost"
-                value={draft.cost}
-                onChangeText={(value) => update('cost', value)}
-                placeholder="0.00"
-                unit="₱"
-                numeric
-                error={errors.cost}
-              />
-              <Input
-                label="Notes"
-                value={draft.notes}
-                onChangeText={(value) => update('notes', value)}
-                placeholder="Optional"
-                multiline
-              />
-
-              <View style={[styles.photoGroup, { borderTopColor: theme.border }]}>
-                <Text style={[Typography.label, { color: theme.textMuted }]}>Photo</Text>
-                {draft.photoUri !== null ? (
-                  <Image
-                    source={{ uri: draft.photoUri }}
-                    style={[styles.preview, { borderColor: theme.border }]}
-                    contentFit="cover"
-                    accessibilityLabel="Selected document photo"
-                  />
-                ) : null}
-                <View style={styles.photoActions}>
-                  <Button
-                    label="Choose from gallery"
-                    variant="secondary"
-                    onPress={() => void pickPhoto(false)}
-                    loading={picking}
-                  />
-                  <Button
-                    label="Take photo"
-                    variant="secondary"
-                    onPress={() => void pickPhoto(true)}
-                    loading={picking}
-                  />
-                </View>
-                {draft.photoUri !== null ? (
-                  <Button label="Remove photo" variant="ghost" onPress={() => update('photoUri', null)} />
-                ) : null}
-                {photoError !== null ? (
-                  <Text style={[Typography.body, { color: theme.dangerInk }]}>{photoError}</Text>
-                ) : null}
-              </View>
-
-              <View style={styles.actions}>
-                <Button label="Cancel" onPress={onClose} variant="secondary" />
-                <Button label={initialDocument === null ? 'Add document' : 'Save changes'} onPress={handleSave} />
-              </View>
-
-              {initialDocument !== null && !initialDocument.superseded ? (
-                <Button label="Mark as renewed" onPress={onRenew} variant="secondary" />
-              ) : null}
-
-              {initialDocument !== null ? (
-                <Button label="Delete document" onPress={handleDelete} variant="ghost" />
-              ) : null}
-            </ScrollView>
-          </SafeAreaView>
+      <View style={styles.field}>
+        <Text style={[Typography.label, { color: theme.textMuted }]}>Type</Text>
+        <View style={styles.chips}>
+          {DOCUMENT_TYPES.map((type) => {
+            const selected = draft.type === type;
+            return (
+              <Pressable
+                key={type}
+                onPress={() => update('type', type)}
+                accessibilityRole="button"
+                accessibilityLabel={DOCUMENT_LABELS[type]}
+                accessibilityState={{ selected }}
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: selected ? theme.accentSoft : theme.surfaceAlt,
+                    borderColor: selected ? theme.accent : theme.border,
+                  },
+                ]}>
+                <Text
+                  style={[
+                    Typography.body,
+                    styles.chipText,
+                    { color: selected ? theme.accentInk : theme.text },
+                  ]}>
+                  {DOCUMENT_LABELS[type]}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
-    </Modal>
+
+      <Input
+        label="Name or number"
+        value={draft.name}
+        onChangeText={(value) => update('name', value)}
+        placeholder="Optional"
+      />
+      <DateField
+        label="Issue date"
+        value={draft.issueDate}
+        onChange={(value) => update('issueDate', value)}
+        error={errors.issueDate}
+        clearable
+      />
+      <DateField
+        label="Expiry date"
+        value={draft.expiryDate}
+        onChange={(value) => update('expiryDate', value)}
+        error={errors.expiryDate}
+      />
+      <Input
+        label="Renewal cost"
+        value={draft.cost}
+        onChangeText={(value) => update('cost', value)}
+        placeholder="0.00"
+        unit="₱"
+        numeric
+        error={errors.cost}
+      />
+      <Input
+        label="Notes"
+        value={draft.notes}
+        onChangeText={(value) => update('notes', value)}
+        placeholder="Optional"
+        multiline
+      />
+
+      <View style={[styles.photoGroup, { borderTopColor: theme.border }]}>
+        <Text style={[Typography.label, { color: theme.textMuted }]}>Photo</Text>
+        {draft.photoUri !== null ? (
+          <Image
+            source={{ uri: draft.photoUri }}
+            style={[styles.preview, { borderColor: theme.border }]}
+            contentFit="cover"
+            accessibilityLabel="Selected document photo"
+          />
+        ) : null}
+        <View style={styles.photoActions}>
+          <Button
+            label="Choose from gallery"
+            variant="secondary"
+            onPress={() => void pickPhoto(false)}
+            loading={picking}
+          />
+          <Button
+            label="Take photo"
+            variant="secondary"
+            onPress={() => void pickPhoto(true)}
+            loading={picking}
+          />
+        </View>
+        {draft.photoUri !== null ? (
+          <Button label="Remove photo" variant="ghost" onPress={() => update('photoUri', null)} />
+        ) : null}
+        {photoError !== null ? (
+          <Text style={[Typography.body, { color: theme.dangerInk }]}>{photoError}</Text>
+        ) : null}
+      </View>
+
+      <View style={styles.actions}>
+        <Button label="Cancel" onPress={onClose} variant="secondary" />
+        <Button label={initialDocument === null ? 'Add document' : 'Save changes'} onPress={handleSave} />
+      </View>
+
+      {initialDocument !== null && !initialDocument.superseded ? (
+        <Button label="Mark as renewed" onPress={onRenew} variant="secondary" />
+      ) : null}
+
+      {initialDocument !== null ? (
+        <Button label="Delete document" onPress={handleDelete} variant="ghost" />
+      ) : null}
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-  },
-  dismissArea: {
-    flex: 1,
-  },
-  sheet: {
-    borderTopLeftRadius: Radius.card,
-    borderTopRightRadius: Radius.card,
-    borderTopWidth: 1,
-  },
-  content: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.three,
-    gap: Spacing.three,
-  },
   field: {
     gap: Spacing.two,
   },

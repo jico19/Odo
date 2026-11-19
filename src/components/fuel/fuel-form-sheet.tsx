@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, Switch, Text, View } from 'react-native';
 
-import { ControlHeight, MaxContentWidth, Radius, Spacing, Typography } from '@/constants/theme';
+import { ControlHeight, Radius, Spacing, Typography } from '@/constants/theme';
 import { localDateKey } from '@/hooks/use-today';
 import { useTheme } from '@/hooks/use-theme';
 import type { FuelDraft, FuelLog, NewFuelLog } from '@/types/fuel';
@@ -13,7 +12,7 @@ import {
   type FuelFieldErrors,
 } from '@/utils/validation';
 
-import { Button, DateField, Input } from '../ui';
+import { BottomSheet, Button, DateField, Input } from '@/components/ui';
 
 type FuelFormSheetProps = {
   initialLog: FuelLog | null;
@@ -68,136 +67,93 @@ export function FuelFormSheet({ initialLog, onClose, onSave }: FuelFormSheetProp
   }
 
   return (
-    <Modal
-      visible
-      transparent
-      animationType="slide"
-      presentationStyle="overFullScreen"
-      onRequestClose={onClose}
-      accessibilityViewIsModal>
-      <View style={styles.backdrop}>
-        <Pressable
-          style={styles.dismissArea}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Close fuel form"
-        />
+    <BottomSheet onClose={onClose} dismissLabel="Close fuel form">
+      <Text style={[Typography.title, { color: theme.text }]}>
+        {initialLog === null ? 'Add fuel' : 'Edit fuel'}
+      </Text>
+
+      <DateField
+        label="Date"
+        value={draft.date}
+        onChange={(value) => update('date', value)}
+        error={errors.date}
+      />
+      <Input
+        label="Liters"
+        value={draft.liters}
+        onChangeText={(value) => update('liters', value)}
+        placeholder="20"
+        unit="L"
+        numeric
+        error={errors.liters}
+      />
+      <Input
+        label="Price per liter"
+        value={draft.pricePerLiter}
+        onChangeText={(value) => update('pricePerLiter', value)}
+        placeholder="60"
+        unit="₱/L"
+        numeric
+        error={errors.pricePerLiter}
+      />
+
+      <View style={styles.field}>
+        <Text style={[Typography.label, { color: theme.textMuted }]}>Total</Text>
         <View
-          style={[styles.sheet, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <SafeAreaView edges={['bottom']}>
-            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-              <Text style={[Typography.title, { color: theme.text }]}>
-                {initialLog === null ? 'Add fuel' : 'Edit fuel'}
-              </Text>
-
-              <DateField
-                label="Date"
-                value={draft.date}
-                onChange={(value) => update('date', value)}
-                error={errors.date}
-              />
-              <Input
-                label="Liters"
-                value={draft.liters}
-                onChangeText={(value) => update('liters', value)}
-                placeholder="20"
-                unit="L"
-                numeric
-                error={errors.liters}
-              />
-              <Input
-                label="Price per liter"
-                value={draft.pricePerLiter}
-                onChangeText={(value) => update('pricePerLiter', value)}
-                placeholder="60"
-                unit="₱/L"
-                numeric
-                error={errors.pricePerLiter}
-              />
-
-              <View style={styles.field}>
-                <Text style={[Typography.label, { color: theme.textMuted }]}>Total</Text>
-                <View
-                  style={[
-                    styles.readOnlyControl,
-                    { backgroundColor: theme.surfaceAlt, borderColor: theme.border },
-                  ]}>
-                  <Text style={[Typography.body, { color: theme.text }]}>
-                    {total === null ? '—' : formatCurrency(total)}
-                  </Text>
-                </View>
-              </View>
-
-              <Input
-                label="Odometer"
-                value={draft.odometer}
-                onChangeText={(value) => update('odometer', value)}
-                placeholder="1650"
-                unit="km"
-                numeric
-                error={errors.odometer}
-              />
-
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleCopy}>
-                  <Text style={[Typography.body, { color: theme.text }]}>Full tank</Text>
-                  <Text style={[Typography.body, { color: theme.textMuted }]}>
-                    Tank filled to the top
-                  </Text>
-                </View>
-                <Switch
-                  value={draft.fullTank}
-                  onValueChange={(value) => setDraft((current) => ({ ...current, fullTank: value }))}
-                  trackColor={{ false: theme.border, true: theme.accentSoft }}
-                  thumbColor={draft.fullTank ? theme.accent : theme.surface}
-                  ios_backgroundColor={theme.border}
-                  accessibilityLabel="Full tank"
-                />
-              </View>
-
-              {formError !== null ? (
-                <Text style={[Typography.body, { color: theme.dangerInk }]}>{formError}</Text>
-              ) : null}
-
-              <View style={styles.actions}>
-                <Button label="Cancel" onPress={onClose} variant="secondary" />
-                <Button
-                  label={initialLog === null ? 'Add fuel' : 'Save changes'}
-                  onPress={handleSave}
-                  loading={saving}
-                />
-              </View>
-            </ScrollView>
-          </SafeAreaView>
+          style={[
+            styles.readOnlyControl,
+            { backgroundColor: theme.surfaceAlt, borderColor: theme.border },
+          ]}>
+          <Text style={[Typography.body, { color: theme.text }]}>
+            {total === null ? '—' : formatCurrency(total)}
+          </Text>
         </View>
       </View>
-    </Modal>
+
+      <Input
+        label="Odometer"
+        value={draft.odometer}
+        onChangeText={(value) => update('odometer', value)}
+        placeholder="1650"
+        unit="km"
+        numeric
+        error={errors.odometer}
+      />
+
+      <View style={styles.toggleRow}>
+        <View style={styles.toggleCopy}>
+          <Text style={[Typography.body, { color: theme.text }]}>Full tank</Text>
+          <Text style={[Typography.body, { color: theme.textMuted }]}>
+            Tank filled to the top
+          </Text>
+        </View>
+        <Switch
+          value={draft.fullTank}
+          onValueChange={(value) => setDraft((current) => ({ ...current, fullTank: value }))}
+          trackColor={{ false: theme.border, true: theme.accentSoft }}
+          thumbColor={draft.fullTank ? theme.accent : theme.surface}
+          ios_backgroundColor={theme.border}
+          accessibilityLabel="Full tank"
+        />
+      </View>
+
+      {formError !== null ? (
+        <Text style={[Typography.body, { color: theme.dangerInk }]}>{formError}</Text>
+      ) : null}
+
+      <View style={styles.actions}>
+        <Button label="Cancel" onPress={onClose} variant="secondary" />
+        <Button
+          label={initialLog === null ? 'Add fuel' : 'Save changes'}
+          onPress={handleSave}
+          loading={saving}
+        />
+      </View>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-  },
-  dismissArea: {
-    flex: 1,
-  },
-  sheet: {
-    borderTopLeftRadius: Radius.card,
-    borderTopRightRadius: Radius.card,
-    borderTopWidth: 1,
-  },
-  content: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.three,
-    gap: Spacing.three,
-  },
   field: {
     gap: Spacing.two,
   },

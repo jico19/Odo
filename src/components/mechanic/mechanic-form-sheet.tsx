@@ -1,11 +1,10 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 
-import { Button, DateField, Input } from '@/components/ui';
-import { MaxContentWidth, Radius, Spacing, Typography } from '@/constants/theme';
+import { BottomSheet, Button, DateField, Input } from '@/components/ui';
+import { Radius, Spacing, Typography } from '@/constants/theme';
 import { localDateKey } from '@/hooks/use-today';
 import { useTheme } from '@/hooks/use-theme';
 import type { MechanicVisit, MechanicVisitDraft, NewMechanicVisit } from '@/types/mechanic';
@@ -106,149 +105,107 @@ export function MechanicFormSheet({
   }
 
   return (
-    <Modal
-      visible
-      transparent
-      animationType="slide"
-      presentationStyle="overFullScreen"
-      onRequestClose={onClose}
-      accessibilityViewIsModal>
-      <View style={styles.backdrop}>
-        <Pressable
-          style={styles.dismissArea}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Close mechanic visit form"
-        />
-        <View style={[styles.sheet, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <SafeAreaView edges={['bottom']}>
-            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-              <Text style={[Typography.title, { color: theme.text }]}>
-                {initialVisit === null ? 'Add visit' : 'Edit visit'}
-              </Text>
-              <DateField
-                label="Date"
-                value={draft.date}
-                onChange={(value) => update('date', value)}
-                error={errors.date}
-              />
-              <Input
-                label="Shop"
-                value={draft.shop}
-                onChangeText={(value) => update('shop', value)}
-                placeholder="Where you took it"
-              />
-              <Input
-                label="Work done"
-                value={draft.workDone}
-                onChangeText={(value) => update('workDone', value)}
-                placeholder="What the mechanic did"
-                multiline
-              />
-              <Input
-                label="Parts"
-                value={draft.parts}
-                onChangeText={(value) => update('parts', value)}
-                placeholder="Parts replaced or used"
-                multiline
-              />
-              <Input
-                label="Cost"
-                value={draft.cost}
-                onChangeText={(value) => update('cost', value)}
-                placeholder="0.00"
-                unit="₱"
-                numeric
-                error={errors.cost}
-              />
-              <Input
-                label="Odometer"
-                value={draft.odometer}
-                onChangeText={(value) => update('odometer', value)}
-                placeholder="Optional"
-                unit="km"
-                numeric
-                error={errors.odometer}
-              />
+    <BottomSheet onClose={onClose} dismissLabel="Close mechanic visit form">
+      <Text style={[Typography.title, { color: theme.text }]}>
+        {initialVisit === null ? 'Add visit' : 'Edit visit'}
+      </Text>
+      <DateField
+        label="Date"
+        value={draft.date}
+        onChange={(value) => update('date', value)}
+        error={errors.date}
+      />
+      <Input
+        label="Shop"
+        value={draft.shop}
+        onChangeText={(value) => update('shop', value)}
+        placeholder="Where you took it"
+      />
+      <Input
+        label="Work done"
+        value={draft.workDone}
+        onChangeText={(value) => update('workDone', value)}
+        placeholder="What the mechanic did"
+        multiline
+      />
+      <Input
+        label="Parts"
+        value={draft.parts}
+        onChangeText={(value) => update('parts', value)}
+        placeholder="Parts replaced or used"
+        multiline
+      />
+      <Input
+        label="Cost"
+        value={draft.cost}
+        onChangeText={(value) => update('cost', value)}
+        placeholder="0.00"
+        unit="₱"
+        numeric
+        error={errors.cost}
+      />
+      <Input
+        label="Odometer"
+        value={draft.odometer}
+        onChangeText={(value) => update('odometer', value)}
+        placeholder="Optional"
+        unit="km"
+        numeric
+        error={errors.odometer}
+      />
 
-              <View style={[styles.receiptGroup, { borderTopColor: theme.border }]}>
-                <Text style={[Typography.label, { color: theme.textMuted }]}>Receipt</Text>
-                {draft.receiptUri !== null ? (
-                  <Image
-                    source={{ uri: draft.receiptUri }}
-                    style={[styles.preview, { borderColor: theme.border }]}
-                    contentFit="cover"
-                    accessibilityLabel="Selected receipt photo"
-                  />
-                ) : null}
-                <View style={styles.photoActions}>
-                  <Button
-                    label="Choose from gallery"
-                    variant="secondary"
-                    onPress={() => void pickReceipt(false)}
-                    loading={picking}
-                  />
-                  <Button
-                    label="Take photo"
-                    variant="secondary"
-                    onPress={() => void pickReceipt(true)}
-                    loading={picking}
-                  />
-                </View>
-                {draft.receiptUri !== null ? (
-                  <Button
-                    label="Remove receipt"
-                    variant="ghost"
-                    onPress={() => update('receiptUri', null)}
-                  />
-                ) : null}
-                {photoError !== null ? (
-                  <Text style={[Typography.body, { color: theme.dangerInk }]}>{photoError}</Text>
-                ) : null}
-              </View>
-
-              <View style={styles.actions}>
-                <Button label="Cancel" onPress={onClose} variant="secondary" />
-                <Button
-                  label={initialVisit === null ? 'Add visit' : 'Save changes'}
-                  onPress={handleSave}
-                />
-              </View>
-
-              {initialVisit !== null ? (
-                <Button label="Delete visit" onPress={handleDelete} variant="ghost" />
-              ) : null}
-            </ScrollView>
-          </SafeAreaView>
+      <View style={[styles.receiptGroup, { borderTopColor: theme.border }]}>
+        <Text style={[Typography.label, { color: theme.textMuted }]}>Receipt</Text>
+        {draft.receiptUri !== null ? (
+          <Image
+            source={{ uri: draft.receiptUri }}
+            style={[styles.preview, { borderColor: theme.border }]}
+            contentFit="cover"
+            accessibilityLabel="Selected receipt photo"
+          />
+        ) : null}
+        <View style={styles.photoActions}>
+          <Button
+            label="Choose from gallery"
+            variant="secondary"
+            onPress={() => void pickReceipt(false)}
+            loading={picking}
+          />
+          <Button
+            label="Take photo"
+            variant="secondary"
+            onPress={() => void pickReceipt(true)}
+            loading={picking}
+          />
         </View>
+        {draft.receiptUri !== null ? (
+          <Button
+            label="Remove receipt"
+            variant="ghost"
+            onPress={() => update('receiptUri', null)}
+          />
+        ) : null}
+        {photoError !== null ? (
+          <Text style={[Typography.body, { color: theme.dangerInk }]}>{photoError}</Text>
+        ) : null}
       </View>
-    </Modal>
+
+      <View style={styles.actions}>
+        <Button label="Cancel" onPress={onClose} variant="secondary" />
+        <Button
+          label={initialVisit === null ? 'Add visit' : 'Save changes'}
+          onPress={handleSave}
+        />
+      </View>
+
+      {initialVisit !== null ? (
+        <Button label="Delete visit" onPress={handleDelete} variant="ghost" />
+      ) : null}
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-  },
-  dismissArea: {
-    flex: 1,
-  },
-  sheet: {
-    borderTopLeftRadius: Radius.card,
-    borderTopRightRadius: Radius.card,
-    borderTopWidth: 1,
-  },
-  content: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.three,
-    gap: Spacing.three,
-  },
   receiptGroup: {
     gap: Spacing.two,
     paddingTop: Spacing.two,

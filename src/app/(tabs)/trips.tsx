@@ -3,9 +3,10 @@ import { router, Redirect } from 'expo-router';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppHeader } from '@/components/app-header';
 import { PermissionSheet } from '@/components/trips/permission-sheet';
 import { TripRow } from '@/components/trips/trip-row';
-import { Button, EmptyState } from '@/components/ui';
+import { Button, EmptyState, SkeletonCard, SkeletonLine } from '@/components/ui';
 import { MaxContentWidth, Radius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTripRecorder } from '@/hooks/use-trip-recorder';
@@ -22,7 +23,15 @@ export default function TripsScreen() {
   const recording = recorder.status === 'recording';
   const busy = recorder.status === 'starting' || recorder.status === 'stopping';
 
-  if (vehicleStatus === 'loading') return <TripsSkeleton />;
+  if (vehicleStatus === 'loading') {
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
+        <View style={styles.content}>
+          <TripsSkeleton />
+        </View>
+      </SafeAreaView>
+    );
+  }
   if (vehicle === null) return <Redirect href="/onboarding" />;
 
   const controlLabel = busy
@@ -35,9 +44,8 @@ export default function TripsScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
+      <AppHeader title="Trips" vehicleName={vehicle.name} odometer={vehicle.odometer} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.four }]}>
-        <Text style={[Typography.title, { color: theme.text }]}>Trips</Text>
-
         {recording ? (
           <View style={[styles.live, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={styles.liveStats}>
@@ -147,13 +155,11 @@ export default function TripsScreen() {
 }
 
 function TripsSkeleton() {
-  const theme = useTheme();
-
   return (
     <View style={styles.skeletonGroup}>
-      <View style={[styles.skeletonLine, { backgroundColor: theme.surfaceAlt }]} />
-      <View style={[styles.skeletonCard, { backgroundColor: theme.surfaceAlt }]} />
-      <View style={[styles.skeletonCard, { backgroundColor: theme.surfaceAlt }]} />
+      <SkeletonLine />
+      <SkeletonCard height={64} />
+      <SkeletonCard height={64} />
     </View>
   );
 }
@@ -220,14 +226,5 @@ const styles = StyleSheet.create({
   },
   skeletonGroup: {
     gap: Spacing.two,
-  },
-  skeletonLine: {
-    width: '40%',
-    height: 20,
-    borderRadius: Radius.control,
-  },
-  skeletonCard: {
-    height: 64,
-    borderRadius: Radius.card,
   },
 });

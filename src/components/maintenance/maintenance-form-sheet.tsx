@@ -1,10 +1,9 @@
 import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Button, DateField, Input } from '@/components/ui';
-import { ControlHeight, MaxContentWidth, Radius, Spacing, Typography } from '@/constants/theme';
+import { BottomSheet, Button, DateField, Input } from '@/components/ui';
+import { ControlHeight, Radius, Spacing, Typography } from '@/constants/theme';
 import { localDateKey } from '@/hooks/use-today';
 import { useTheme } from '@/hooks/use-theme';
 import {
@@ -85,184 +84,141 @@ export function MaintenanceFormSheet({
   }
 
   return (
-    <Modal
-      visible
-      transparent
-      animationType="slide"
-      presentationStyle="overFullScreen"
-      onRequestClose={onClose}
-      accessibilityViewIsModal>
-      <View style={styles.backdrop}>
-        <Pressable
-          style={styles.dismissArea}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Close maintenance form"
-        />
-        <View
-          style={[styles.sheet, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <SafeAreaView edges={['bottom']}>
-            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-              <Text style={[Typography.title, { color: theme.text }]}>
-                {initialLog === null ? 'Add service' : 'Edit service'}
-              </Text>
+    <BottomSheet onClose={onClose} dismissLabel="Close maintenance form">
+      <Text style={[Typography.title, { color: theme.text }]}>
+        {initialLog === null ? 'Add service' : 'Edit service'}
+      </Text>
 
-              <View style={styles.field}>
-                <Text style={[Typography.label, { color: theme.textMuted }]}>Type</Text>
-                <View style={styles.chips}>
-                  {MAINTENANCE_TYPES.map((type) => {
-                    const selected = draft.type === type;
-                    return (
-                      <Pressable
-                        key={type}
-                        onPress={() => update('type', type)}
-                        accessibilityRole="button"
-                        accessibilityLabel={MAINTENANCE_LABELS[type]}
-                        accessibilityState={{ selected }}
-                        style={[
-                          styles.chip,
-                          {
-                            backgroundColor: selected ? theme.accentSoft : theme.surfaceAlt,
-                            borderColor: selected ? theme.accent : theme.border,
-                          },
-                        ]}>
-                        <Text
-                          style={[
-                            Typography.body,
-                            styles.chipText,
-                            { color: selected ? theme.accentInk : theme.text },
-                          ]}>
-                          {MAINTENANCE_LABELS[type]}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-
-              <DateField
-                label="Service date"
-                value={draft.date}
-                onChange={(value) => update('date', value)}
-                error={errors.date}
-              />
-              <Input
-                label="Odometer"
-                value={draft.odometer}
-                onChangeText={(value) => update('odometer', value)}
-                placeholder="1650"
-                unit="km"
-                numeric
-                error={errors.odometer}
-              />
-              <Input
-                label="Cost"
-                value={draft.cost}
-                onChangeText={(value) => update('cost', value)}
-                placeholder="850"
-                unit="₱"
-                numeric
-                error={errors.cost}
-              />
-
+      <View style={styles.field}>
+        <Text style={[Typography.label, { color: theme.textMuted }]}>Type</Text>
+        <View style={styles.chips}>
+          {MAINTENANCE_TYPES.map((type) => {
+            const selected = draft.type === type;
+            return (
               <Pressable
-                onPress={() => update('diy', !draft.diy)}
-                accessibilityRole="checkbox"
-                accessibilityLabel="Done DIY"
-                accessibilityState={{ checked: draft.diy }}
-                style={styles.toggleRow}>
-                <Ionicons
-                  name={draft.diy ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={24}
-                  color={draft.diy ? theme.accent : theme.textMuted}
-                  accessible={false}
-                />
-                <View style={styles.toggleCopy}>
-                  <Text style={[Typography.body, { color: theme.text }]}>Done DIY</Text>
-                  <Text style={[styles.hint, { color: theme.textMuted }]}>
-                    You did this service yourself.
-                  </Text>
-                </View>
-              </Pressable>
-
-              <Input
-                label="Notes"
-                value={draft.notes}
-                onChangeText={(value) => update('notes', value)}
-                placeholder="What was done"
-                multiline
-              />
-
-              <View style={[styles.dueGroup, { borderTopColor: theme.border }]}>
-                <Text style={[Typography.label, { color: theme.textMuted }]}>Next due</Text>
-                <Input
-                  label="Odometer (optional)"
-                  value={draft.nextDueKm}
-                  onChangeText={(value) => update('nextDueKm', value)}
-                  placeholder="3650"
-                  unit="km"
-                  numeric
-                  error={errors.nextDueKm}
-                />
-                <DateField
-                  label="Date (optional)"
-                  value={draft.nextDueDate}
-                  onChange={(value) => update('nextDueDate', value)}
-                  error={errors.nextDueDate}
-                  clearable
-                />
-                <Text style={[styles.hint, { color: theme.textMuted }]}>
-                  Date dues send reminders. Kilometer dues show here in the app.
+                key={type}
+                onPress={() => update('type', type)}
+                accessibilityRole="button"
+                accessibilityLabel={MAINTENANCE_LABELS[type]}
+                accessibilityState={{ selected }}
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: selected ? theme.accentSoft : theme.surfaceAlt,
+                    borderColor: selected ? theme.accent : theme.border,
+                  },
+                ]}>
+                <Text
+                  style={[
+                    Typography.body,
+                    styles.chipText,
+                    { color: selected ? theme.accentInk : theme.text },
+                  ]}>
+                  {MAINTENANCE_LABELS[type]}
                 </Text>
-              </View>
-
-              {formError !== null ? (
-                <Text style={[Typography.body, { color: theme.dangerInk }]}>{formError}</Text>
-              ) : null}
-
-              <View style={styles.actions}>
-                <Button label="Cancel" onPress={onClose} variant="secondary" />
-                <Button
-                  label={initialLog === null ? 'Add service' : 'Save changes'}
-                  onPress={handleSave}
-                  loading={saving}
-                />
-              </View>
-
-              {initialLog !== null ? (
-                <Button label="Delete record" onPress={handleDelete} variant="ghost" />
-              ) : null}
-            </ScrollView>
-          </SafeAreaView>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
-    </Modal>
+
+      <DateField
+        label="Service date"
+        value={draft.date}
+        onChange={(value) => update('date', value)}
+        error={errors.date}
+      />
+      <Input
+        label="Odometer"
+        value={draft.odometer}
+        onChangeText={(value) => update('odometer', value)}
+        placeholder="1650"
+        unit="km"
+        numeric
+        error={errors.odometer}
+      />
+      <Input
+        label="Cost"
+        value={draft.cost}
+        onChangeText={(value) => update('cost', value)}
+        placeholder="850"
+        unit="₱"
+        numeric
+        error={errors.cost}
+      />
+
+      <Pressable
+        onPress={() => update('diy', !draft.diy)}
+        accessibilityRole="checkbox"
+        accessibilityLabel="Done DIY"
+        accessibilityState={{ checked: draft.diy }}
+        style={styles.toggleRow}>
+        <Ionicons
+          name={draft.diy ? 'checkmark-circle' : 'ellipse-outline'}
+          size={24}
+          color={draft.diy ? theme.accent : theme.textMuted}
+          accessible={false}
+        />
+        <View style={styles.toggleCopy}>
+          <Text style={[Typography.body, { color: theme.text }]}>Done DIY</Text>
+          <Text style={[styles.hint, { color: theme.textMuted }]}>
+            You did this service yourself.
+          </Text>
+        </View>
+      </Pressable>
+
+      <Input
+        label="Notes"
+        value={draft.notes}
+        onChangeText={(value) => update('notes', value)}
+        placeholder="What was done"
+        multiline
+      />
+
+      <View style={[styles.dueGroup, { borderTopColor: theme.border }]}>
+        <Text style={[Typography.label, { color: theme.textMuted }]}>Next due</Text>
+        <Input
+          label="Odometer (optional)"
+          value={draft.nextDueKm}
+          onChangeText={(value) => update('nextDueKm', value)}
+          placeholder="3650"
+          unit="km"
+          numeric
+          error={errors.nextDueKm}
+        />
+        <DateField
+          label="Date (optional)"
+          value={draft.nextDueDate}
+          onChange={(value) => update('nextDueDate', value)}
+          error={errors.nextDueDate}
+          clearable
+        />
+        <Text style={[styles.hint, { color: theme.textMuted }]}>
+          Date dues send reminders. Kilometer dues show here in the app.
+        </Text>
+      </View>
+
+      {formError !== null ? (
+        <Text style={[Typography.body, { color: theme.dangerInk }]}>{formError}</Text>
+      ) : null}
+
+      <View style={styles.actions}>
+        <Button label="Cancel" onPress={onClose} variant="secondary" />
+        <Button
+          label={initialLog === null ? 'Add service' : 'Save changes'}
+          onPress={handleSave}
+          loading={saving}
+        />
+      </View>
+
+      {initialLog !== null ? (
+        <Button label="Delete record" onPress={handleDelete} variant="ghost" />
+      ) : null}
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-  },
-  dismissArea: {
-    flex: 1,
-  },
-  sheet: {
-    borderTopLeftRadius: Radius.card,
-    borderTopRightRadius: Radius.card,
-    borderTopWidth: 1,
-  },
-  content: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.three,
-    gap: Spacing.three,
-  },
   field: {
     gap: Spacing.two,
   },
