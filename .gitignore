@@ -18,6 +18,18 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Signing & store credentials (sensitive)
+*.keystore
+*.keystore.*
+android/app/*.keystore
+*.pem
+*.cer
+google-services.json
+GoogleService-Info.plist
+secrets.*
+secrets/
+*.secret
+
 # Metro
 .metro-health-check*
 
@@ -25,16 +37,35 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
 
 # macOS
 .DS_Store
-*.pem
 
-# local env files
-.env*.local
+# local env files (sensitive — keep .env.example if you add one)
+.env
+.env.*
+!.env.example
+
+# package registry tokens (sensitive)
+.npmrc
+.yarnrc
+.yarnrc.yml
+
+# editor / IDE
+.idea/
+*.iml
+
+# local databases / app data (personal data)
+*.db
+*.sqlite
+*.sqlite3
 
 # typescript
 *.tsbuildinfo
+
+# coverage / test artifacts
+coverage/
 
 example
 

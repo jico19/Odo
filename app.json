@@ -26,13 +26,22 @@
     "plugins": [
       "expo-router",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to record your route and distance while a trip is being recorded."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#208AEF",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      "expo-sqlite",
+      "@react-native-vector-icons/ionicons",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
