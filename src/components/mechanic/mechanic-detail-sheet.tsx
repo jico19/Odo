@@ -1,20 +1,22 @@
-import { Image } from 'expo-image';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Button, EmptyState, ListRow, StatusChip } from '@/components/ui';
+import { Button, EmptyState, ListRow, PhotoPreview, StatusChip } from '@/components/ui';
 import { MaxContentWidth, Radius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useToday } from '@/hooks/use-today';
-import { MAINTENANCE_LABELS, type MaintenanceLog } from '@/types/maintenance';
+import type { MaintenanceLog } from '@/types/maintenance';
+import type { PmsItem } from '@/types/pms';
 import type { MechanicVisit } from '@/types/mechanic';
 import { getDueInfo } from '@/utils/calculations';
 import { formatCurrency, formatDateShort, formatOdometer } from '@/utils/format';
+import { maintenanceLabel } from '@/utils/pms';
 
 type MechanicDetailSheetProps = {
   visit: MechanicVisit;
   linked: MaintenanceLog[];
   unlinked: MaintenanceLog[];
+  pmsItems: readonly PmsItem[];
   onClose: () => void;
   onEdit: () => void;
   onLink: (logId: number) => void;
@@ -32,6 +34,7 @@ export function MechanicDetailSheet({
   visit,
   linked,
   unlinked,
+  pmsItems,
   onClose,
   onEdit,
   onLink,
@@ -58,14 +61,12 @@ export function MechanicDetailSheet({
             <Button label="Close" variant="ghost" onPress={onClose} />
           </View>
 
-          {visit.receiptUri !== null ? (
-            <Image
-              source={{ uri: visit.receiptUri }}
-              style={[styles.receipt, { borderColor: theme.border }]}
-              contentFit="contain"
-              accessibilityLabel="Visit receipt"
-            />
-          ) : null}
+          <PhotoPreview
+            uri={visit.receiptUri}
+            label="receipt"
+            style={styles.receipt}
+            contentFit="contain"
+          />
 
           <View style={[styles.details, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <DetailLine label="Work done" value={visit.workDone} />
@@ -94,7 +95,7 @@ export function MechanicDetailSheet({
                     <View style={styles.actionRowDetails}>
                       <ListRow
                         icon="construct-outline"
-                        title={MAINTENANCE_LABELS[log.type]}
+                        title={maintenanceLabel(log, pmsItems)}
                         subtitle={serviceSubtitle(log)}
                         date={formatDateShort(log.date)}
                         badge={<StatusChip tone={due.status} label={due.status === 'ok' ? 'OK' : due.status === 'dueSoon' ? 'DUE SOON' : 'OVERDUE'} />}
@@ -123,7 +124,7 @@ export function MechanicDetailSheet({
                   <View style={styles.actionRowDetails}>
                     <ListRow
                       icon="construct-outline"
-                      title={MAINTENANCE_LABELS[log.type]}
+                      title={maintenanceLabel(log, pmsItems)}
                       subtitle={serviceSubtitle(log)}
                       date={formatDateShort(log.date)}
                       divider={false}

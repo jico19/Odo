@@ -6,7 +6,7 @@ import type { IconName } from '@/components/ui';
 import { LightCardShadow, Radius, Spacing, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
-import { MAINTENANCE_LABELS, type MaintenanceLog, type MaintenanceType } from '@/types/maintenance';
+import type { MaintenanceLog, MaintenanceType } from '@/types/maintenance';
 import { getDueInfo, getMaintenanceProgress } from '@/utils/calculations';
 import { formatDateShort, formatOdometer } from '@/utils/format';
 
@@ -51,12 +51,13 @@ function dueText(
 
 type MaintenanceRowProps = {
   log: MaintenanceLog;
+  label: string;
   currentOdometer: number;
   today: string;
   onPress: () => void;
 };
 
-export function MaintenanceRow({ log, currentOdometer, today, onPress }: MaintenanceRowProps) {
+export function MaintenanceRow({ log, label, currentOdometer, today, onPress }: MaintenanceRowProps) {
   const theme = useTheme();
   const scheme = useColorScheme();
   const shadow = scheme === 'light' ? LightCardShadow : undefined;
@@ -69,7 +70,7 @@ export function MaintenanceRow({ log, currentOdometer, today, onPress }: Mainten
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${MAINTENANCE_LABELS[log.type]}, ${status}, ${detail}${dueDate}${log.diy ? ', DIY' : ''}`}
+      accessibilityLabel={`${label}, ${status}, ${detail}${dueDate}${log.diy ? ', DIY' : ''}`}
       style={({ pressed }) => [
         styles.card,
         shadow,
@@ -88,7 +89,7 @@ export function MaintenanceRow({ log, currentOdometer, today, onPress }: Mainten
         <View style={styles.details}>
           <View style={styles.titleRow}>
             <Text style={[Typography.heading, { color: theme.text }]}>
-              {MAINTENANCE_LABELS[log.type]}
+              {label}
             </Text>
             {log.diy ? (
               <View style={[styles.diyBadge, { backgroundColor: theme.accentSoft }]}>
@@ -108,7 +109,7 @@ export function MaintenanceRow({ log, currentOdometer, today, onPress }: Mainten
           value={progress.value}
           max={progress.max}
           tone={progress.tone}
-          accessibilityLabel={`${MAINTENANCE_LABELS[log.type]} ${progress.basis === 'km' ? 'kilometer' : 'date'} progress, ${detail}`}
+          accessibilityLabel={`${label} ${progress.basis === 'km' ? 'kilometer' : 'date'} progress, ${detail}`}
         />
       ) : null}
       {log.notes !== null ? (

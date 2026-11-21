@@ -1,3 +1,4 @@
+// Kept for old records and derived PMS categories. New logs use 'other' unless linked to a PMS item.
 export const MAINTENANCE_TYPES = [
   'oil',
   'tires',
@@ -34,6 +35,7 @@ export type MaintenanceLog = {
   nextDueDate: string | null;
   diy: boolean;
   visitId: number | null;
+  pmsItemId: number | null;
 };
 
 export type NewMaintenanceLog = {
@@ -45,6 +47,7 @@ export type NewMaintenanceLog = {
   nextDueKm: number | null;
   nextDueDate: string | null;
   diy: boolean;
+  pmsItemId?: number | null;
 };
 
 export type MaintenanceDraft = {
@@ -56,4 +59,5 @@ export type MaintenanceDraft = {
   nextDueKm: string;
   nextDueDate: string;
   diy: boolean;
+  pmsItemId?: number | null;
 };

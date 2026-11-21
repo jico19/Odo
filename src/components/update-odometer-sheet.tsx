@@ -20,7 +20,7 @@ export function UpdateOdometerSheet({ current, onClose, onSave }: UpdateOdometer
   const [saving, setSaving] = useState(false);
 
   function handleSave() {
-    const result = validateOdometerUpdate(value, current);
+    const result = validateOdometerUpdate(value);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -37,9 +37,8 @@ export function UpdateOdometerSheet({ current, onClose, onSave }: UpdateOdometer
   }
 
   return (
-    <BottomSheet onClose={onClose} dismissLabel="Close update odometer">
+    <BottomSheet onClose={onClose} dismissLabel="Close update odometer" title="Update odometer">
       <View style={styles.heading}>
-        <Text style={[Typography.title, { color: theme.text }]}>Update odometer</Text>
         <Text style={[Typography.body, { color: theme.textMuted }]}>
           Current reading: {formatOdometer(current)} km
         </Text>
@@ -59,8 +58,7 @@ export function UpdateOdometerSheet({ current, onClose, onSave }: UpdateOdometer
       />
 
       <View style={styles.actions}>
-        <Button label="Cancel" onPress={onClose} variant="secondary" />
-        <Button label="Save reading" onPress={handleSave} loading={saving} />
+        <Button label="Save reading" onPress={handleSave} loading={saving} fullWidth />
       </View>
     </BottomSheet>
   );

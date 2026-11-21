@@ -14,6 +14,7 @@ export type ListRowProps = {
   value?: string;
   date?: string;
   badge?: ReactNode;
+  accessory?: ReactNode;
   onPress?: () => void;
   accessibilityLabel?: string;
   divider?: boolean;
@@ -26,6 +27,7 @@ export function ListRow({
   value,
   date,
   badge,
+  accessory,
   onPress,
   accessibilityLabel,
   divider = true,
@@ -64,21 +66,32 @@ export function ListRow({
     </>
   );
 
-  const rowStyle = [styles.row, divider && styles.divider, { borderBottomColor: theme.border }];
-
-  return onPress ? (
+  const row = onPress ? (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={description}
-      style={rowStyle}>
+      style={styles.row}>
       {content}
     </Pressable>
   ) : (
-    <View accessible accessibilityLabel={description} style={rowStyle}>
+    <View accessible accessibilityLabel={description} style={styles.row}>
       {content}
     </View>
   );
+
+  const borderStyle = [divider && styles.divider, { borderBottomColor: theme.border }];
+
+  if (accessory !== undefined && accessory !== null) {
+    return (
+      <View style={[styles.withAccessory, ...borderStyle]}>
+        <View style={styles.rowFlex}>{row}</View>
+        <View style={styles.accessory}>{accessory}</View>
+      </View>
+    );
+  }
+
+  return <View style={borderStyle}>{row}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -88,6 +101,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.three,
     paddingVertical: Spacing.two,
+  },
+  withAccessory: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rowFlex: {
+    flex: 1,
+    minWidth: 0,
+  },
+  accessory: {
+    paddingLeft: Spacing.two,
   },
   divider: {
     borderBottomWidth: 1,

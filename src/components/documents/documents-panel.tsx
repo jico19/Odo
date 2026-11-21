@@ -14,7 +14,6 @@ type DocumentsPanelProps = {
   error: string | null;
   retry: () => void;
   today: string;
-  onAdd: () => void;
   onEdit: (document: Document) => void;
 };
 
@@ -30,7 +29,6 @@ export function DocumentsPanel({
   error,
   retry,
   today,
-  onAdd,
   onEdit,
 }: DocumentsPanelProps) {
   const theme = useTheme();
@@ -51,9 +49,7 @@ export function DocumentsPanel({
     return (
       <EmptyState
         icon="card-outline"
-        message="Add your registration to get renewal reminders"
-        actionLabel="Add document"
-        onAction={onAdd}
+        message="Tap + to add a document and get renewal reminders."
       />
     );
   }

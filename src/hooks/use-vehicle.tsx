@@ -3,10 +3,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { ensureDatabase } from '@/db/database';
 import {
   createVehicle,
+  createVehicleWithItems,
   getFirstVehicle,
   setOdometer,
+  setOnboardingComplete,
   updateVehicle,
+  type VehicleSettings,
 } from '@/db/queries';
+import type { NewPmsItem } from '@/types/pms';
 import type { NewVehicle, Vehicle } from '@/types/vehicle';
 
 type VehicleStatus = 'loading' | 'ready' | 'error';
@@ -18,7 +22,9 @@ type VehicleContextValue = {
   retry: () => void;
   applyVehicle: (next: Vehicle) => void;
   create: (input: NewVehicle) => Vehicle;
-  update: (id: number, input: Pick<NewVehicle, 'name' | 'plate'>) => void;
+  createWithItems: (input: NewVehicle, items: NewPmsItem[]) => Vehicle;
+  update: (id: number, input: VehicleSettings) => void;
+  completeOnboarding: (id: number) => void;
   updateOdometer: (id: number, next: number) => Vehicle;
 };
 
@@ -66,8 +72,19 @@ export function VehicleProvider({ children }: { children: ReactNode }) {
     return created;
   }, []);
 
-  const update = useCallback((id: number, input: Pick<NewVehicle, 'name' | 'plate'>) => {
+  const createWithItems = useCallback((input: NewVehicle, items: NewPmsItem[]) => {
+    const created = createVehicleWithItems(input, items);
+    setVehicle(created);
+    return created;
+  }, []);
+
+  const update = useCallback((id: number, input: VehicleSettings) => {
     const updated = updateVehicle(id, input);
+    if (updated !== null) setVehicle(updated);
+  }, []);
+
+  const completeOnboarding = useCallback((id: number) => {
+    const updated = setOnboardingComplete(id);
     if (updated !== null) setVehicle(updated);
   }, []);
 
@@ -83,8 +100,30 @@ export function VehicleProvider({ children }: { children: ReactNode }) {
   }, [load]);
 
   const value = useMemo<VehicleContextValue>(
-    () => ({ status, vehicle, error, retry, applyVehicle, create, update, updateOdometer }),
-    [status, vehicle, error, retry, applyVehicle, create, update, updateOdometer]
+    () => ({
+      status,
+      vehicle,
+      error,
+      retry,
+      applyVehicle,
+      create,
+      createWithItems,
+      update,
+      completeOnboarding,
+      updateOdometer,
+    }),
+    [
+      status,
+      vehicle,
+      error,
+      retry,
+      applyVehicle,
+      create,
+      createWithItems,
+      update,
+      completeOnboarding,
+      updateOdometer,
+    ]
   );
 
   return <VehicleContext.Provider value={value}>{children}</VehicleContext.Provider>;

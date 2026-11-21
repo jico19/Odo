@@ -110,6 +110,45 @@ const MIGRATIONS: readonly string[] = [
   ALTER TABLE trip_points ADD COLUMN accuracy REAL;
   CREATE INDEX IF NOT EXISTS idx_trip_points_trip_id ON trip_points(trip_id);
   `,
+
+  // Migration 6: user-editable PMS items, vehicle setup state and preferences.
+  `
+  ALTER TABLE vehicles ADD COLUMN transmission_type TEXT;
+  ALTER TABLE vehicles ADD COLUMN is_liquid_cooled INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE vehicles ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0;
+
+  CREATE TABLE IF NOT EXISTS pms_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vehicle_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    label TEXT NOT NULL,
+    interval_km REAL,
+    interval_days INTEGER,
+    default_interval_km REAL,
+    default_interval_days INTEGER,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    is_custom INTEGER NOT NULL DEFAULT 0,
+    last_done_odometer REAL,
+    last_done_date TEXT,
+    started_odometer REAL,
+    started_date TEXT,
+    UNIQUE (vehicle_id, type),
+    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_pms_items_vehicle_id ON pms_items(vehicle_id);
+
+  ALTER TABLE maintenance_logs ADD COLUMN pms_item_id INTEGER;
+  CREATE INDEX IF NOT EXISTS idx_maintenance_logs_pms_item_id ON maintenance_logs(pms_item_id);
+
+  CREATE TABLE IF NOT EXISTS preferences (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
+  -- Any bike already in an installed app belongs to an existing user: do not
+  -- send them back through onboarding, and leave transmission unset on purpose.
+  UPDATE vehicles SET onboarding_completed = 1;
+  `,
 ];
 
 export async function initializeDatabase(): Promise<void> {

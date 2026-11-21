@@ -1,5 +1,5 @@
 import { Ionicons } from '@react-native-vector-icons/ionicons';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MaxContentWidth, Radius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -10,15 +10,34 @@ export type AppHeaderProps = {
   vehicleName: string;
   odometer: number;
   subtitle?: string;
+  onBack?: () => void;
+  onSettingsPress?: () => void;
 };
 
-export function AppHeader({ title, vehicleName, odometer, subtitle }: AppHeaderProps) {
+export function AppHeader({
+  title,
+  vehicleName,
+  odometer,
+  subtitle,
+  onBack,
+  onSettingsPress,
+}: AppHeaderProps) {
   const theme = useTheme();
   const detail = subtitle ?? `${vehicleName} · ${formatOdometer(odometer)} km`;
 
   return (
     <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
       <View style={styles.inner}>
+        {onBack !== undefined ? (
+          <Pressable
+            onPress={onBack}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            hitSlop={8}
+            style={styles.back}>
+            <Ionicons name="arrow-back" size={22} color={theme.text} accessible={false} />
+          </Pressable>
+        ) : null}
         <View style={styles.brand}>
           <View style={[styles.mark, { backgroundColor: theme.accentSoft }]}>
             <Ionicons name="speedometer" size={18} color={theme.accentInk} accessible={false} />
@@ -32,6 +51,16 @@ export function AppHeader({ title, vehicleName, odometer, subtitle }: AppHeaderP
             </Text>
           </View>
         </View>
+        {onSettingsPress !== undefined ? (
+          <Pressable
+            onPress={onSettingsPress}
+            accessibilityRole="button"
+            accessibilityLabel="Open settings"
+            hitSlop={8}
+            style={styles.action}>
+            <Ionicons name="settings-outline" size={22} color={theme.text} accessible={false} />
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -49,8 +78,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: Spacing.two,
+  },
+  back: {
+    width: 32,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   brand: {
     flex: 1,
@@ -79,10 +113,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     textTransform: 'none',
   },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: Radius.pill,
+  action: {
+    width: 40,
+    height: 44,
+    borderRadius: Radius.control,
     alignItems: 'center',
     justifyContent: 'center',
   },

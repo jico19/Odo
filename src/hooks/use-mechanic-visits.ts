@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { ensureDatabase } from '@/db/database';
 import {
@@ -16,6 +16,8 @@ import type { MaintenanceLog } from '@/types/maintenance';
 import type { MechanicVisit, NewMechanicVisit } from '@/types/mechanic';
 import { deleteQuietly } from '@/utils/app-files';
 
+import { useDataSync, useDatabaseReload } from './use-data-sync';
+
 type VisitStatus = 'loading' | 'ready' | 'error';
 type VisitLinks = { linked: MaintenanceLog[]; unlinked: MaintenanceLog[] };
 
@@ -26,6 +28,7 @@ function toErrorMessage(error: unknown): string {
 }
 
 export function useMechanicVisits(vehicleId: number) {
+  const { notifyDataChanged } = useDataSync();
   const [status, setStatus] = useState<VisitStatus>('loading');
   const [visits, setVisits] = useState<MechanicVisit[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +59,7 @@ export function useMechanicVisits(vehicleId: number) {
     };
   }, [refresh]);
 
-  useEffect(() => load(), [load]);
+  useDatabaseReload(load);
 
   const refreshLinks = useCallback(
     (visitId: number) => {
@@ -72,9 +75,10 @@ export function useMechanicVisits(vehicleId: number) {
     (input: NewMechanicVisit) => {
       const created = insertMechanicVisit(vehicleId, input);
       refresh();
+      notifyDataChanged();
       return created;
     },
-    [refresh, vehicleId]
+    [notifyDataChanged, refresh, vehicleId]
   );
 
   const update = useCallback(
@@ -87,9 +91,10 @@ export function useMechanicVisits(vehicleId: number) {
         void deleteQuietly(existing.receiptUri);
       }
       refresh();
+      notifyDataChanged();
       return updated;
     },
-    [refresh, vehicleId]
+    [notifyDataChanged, refresh, vehicleId]
   );
 
   const remove = useCallback(
@@ -99,24 +104,27 @@ export function useMechanicVisits(vehicleId: number) {
       if (existing !== null) void deleteQuietly(existing.receiptUri);
       setLinks(EMPTY_LINKS);
       refresh();
+      notifyDataChanged();
     },
-    [refresh, vehicleId]
+    [notifyDataChanged, refresh, vehicleId]
   );
 
   const link = useCallback(
     (logId: number, visitId: number) => {
       linkMaintenanceLogToVisit(logId, visitId, vehicleId);
       refreshLinks(visitId);
+      notifyDataChanged();
     },
-    [refreshLinks, vehicleId]
+    [notifyDataChanged, refreshLinks, vehicleId]
   );
 
   const unlink = useCallback(
     (logId: number, visitId: number) => {
       unlinkMaintenanceLogFromVisit(logId, visitId, vehicleId);
       refreshLinks(visitId);
+      notifyDataChanged();
     },
-    [refreshLinks, vehicleId]
+    [notifyDataChanged, refreshLinks, vehicleId]
   );
 
   const retry = useCallback(() => {

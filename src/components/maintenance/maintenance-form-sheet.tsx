@@ -6,13 +6,11 @@ import { BottomSheet, Button, DateField, Input } from '@/components/ui';
 import { ControlHeight, Radius, Spacing, Typography } from '@/constants/theme';
 import { localDateKey } from '@/hooks/use-today';
 import { useTheme } from '@/hooks/use-theme';
-import {
-  MAINTENANCE_LABELS,
-  MAINTENANCE_TYPES,
-  type MaintenanceDraft,
-  type MaintenanceLog,
-  type NewMaintenanceLog,
-} from '@/types/maintenance';
+import type { MaintenanceDraft, MaintenanceLog, NewMaintenanceLog } from '@/types/maintenance';
+import type { PmsItem } from '@/types/pms';
+import type { DistanceUnit } from '@/types/preferences';
+import { distanceUnitLabel } from '@/utils/format';
+import { maintenanceTypeForPms } from '@/utils/pms';
 import {
   validateMaintenanceDraft,
   type MaintenanceFieldErrors,
@@ -20,14 +18,21 @@ import {
 
 type MaintenanceFormSheetProps = {
   initialLog: MaintenanceLog | null;
+  pmsItems: PmsItem[];
+  initialPmsItemId?: number | null;
+  distanceUnit?: DistanceUnit;
+  currency?: string;
   onClose: () => void;
   onSave: (input: NewMaintenanceLog) => void;
   onDelete: () => void;
 };
 
-function toDraft(log: MaintenanceLog | null): MaintenanceDraft {
+function toDraft(
+  log: MaintenanceLog | null,
+  initialPmsItemId: number | null | undefined
+): MaintenanceDraft {
   return {
-    type: log?.type ?? 'oil',
+    type: log?.type ?? 'other',
     date: log?.date ?? localDateKey(new Date()),
     odometer: log?.odometer == null ? '' : String(log.odometer),
     cost: log?.cost == null ? '' : String(log.cost),
@@ -35,25 +40,46 @@ function toDraft(log: MaintenanceLog | null): MaintenanceDraft {
     nextDueKm: log?.nextDueKm == null ? '' : String(log.nextDueKm),
     nextDueDate: log?.nextDueDate ?? '',
     diy: log?.diy ?? false,
+    pmsItemId: log?.pmsItemId ?? initialPmsItemId ?? null,
   };
 }
 
 export function MaintenanceFormSheet({
   initialLog,
+  pmsItems,
+  initialPmsItemId,
+  distanceUnit = 'km',
+  currency = 'PHP',
   onClose,
   onSave,
   onDelete,
 }: MaintenanceFormSheetProps) {
   const theme = useTheme();
-  const [draft, setDraft] = useState<MaintenanceDraft>(() => toDraft(initialLog));
+  const [draft, setDraft] = useState<MaintenanceDraft>(() =>
+    toDraft(initialLog, initialPmsItemId)
+  );
   const [errors, setErrors] = useState<MaintenanceFieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const selectedItem = pmsItems.find((item) => item.id === draft.pmsItemId) ?? null;
 
   function update<K extends keyof MaintenanceDraft>(field: K, value: MaintenanceDraft[K]) {
     setDraft((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: undefined }));
     setFormError(null);
+  }
+
+  function selectPmsItem(id: number | null) {
+    const item = id === null ? null : (pmsItems.find((candidate) => candidate.id === id) ?? null);
+    setDraft((current) => ({
+      ...current,
+      pmsItemId: id,
+      type: item === null ? 'other' : maintenanceTypeForPms(item.type),
+      nextDueKm: item === null ? current.nextDueKm : '',
+      nextDueDate: item === null ? current.nextDueDate : '',
+    }));
+    setErrors({});
   }
 
   function handleSave() {
@@ -83,23 +109,45 @@ export function MaintenanceFormSheet({
     );
   }
 
-  return (
-    <BottomSheet onClose={onClose} dismissLabel="Close maintenance form">
-      <Text style={[Typography.title, { color: theme.text }]}>
-        {initialLog === null ? 'Add service' : 'Edit service'}
-      </Text>
+  const unit = distanceUnitLabel(distanceUnit);
 
+  return (
+    <BottomSheet
+      onClose={onClose}
+      dismissLabel="Close maintenance form"
+      title={initialLog === null ? 'Log service' : 'Edit service'}>
       <View style={styles.field}>
-        <Text style={[Typography.label, { color: theme.textMuted }]}>Type</Text>
+        <Text style={[Typography.label, { color: theme.textMuted }]}>Service item</Text>
         <View style={styles.chips}>
-          {MAINTENANCE_TYPES.map((type) => {
-            const selected = draft.type === type;
+          <Pressable
+            onPress={() => selectPmsItem(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Other service"
+            accessibilityState={{ selected: draft.pmsItemId === null }}
+            style={[
+              styles.chip,
+              {
+                backgroundColor: draft.pmsItemId === null ? theme.accentSoft : theme.surfaceAlt,
+                borderColor: draft.pmsItemId === null ? theme.accent : theme.border,
+              },
+            ]}>
+            <Text
+              style={[
+                Typography.body,
+                styles.chipText,
+                { color: draft.pmsItemId === null ? theme.accentInk : theme.text },
+              ]}>
+              Other
+            </Text>
+          </Pressable>
+          {pmsItems.map((item) => {
+            const selected = draft.pmsItemId === item.id;
             return (
               <Pressable
-                key={type}
-                onPress={() => update('type', type)}
+                key={item.id}
+                onPress={() => selectPmsItem(item.id)}
                 accessibilityRole="button"
-                accessibilityLabel={MAINTENANCE_LABELS[type]}
+                accessibilityLabel={item.label}
                 accessibilityState={{ selected }}
                 style={[
                   styles.chip,
@@ -114,12 +162,18 @@ export function MaintenanceFormSheet({
                     styles.chipText,
                     { color: selected ? theme.accentInk : theme.text },
                   ]}>
-                  {MAINTENANCE_LABELS[type]}
+                  {item.label}
                 </Text>
               </Pressable>
             );
           })}
         </View>
+        {selectedItem !== null ? (
+          <Text style={[styles.hint, { color: theme.textMuted }]}>
+            Last done for {selectedItem.label} will be updated. Its interval controls the next due
+            date.
+          </Text>
+        ) : null}
       </View>
 
       <DateField
@@ -132,8 +186,8 @@ export function MaintenanceFormSheet({
         label="Odometer"
         value={draft.odometer}
         onChangeText={(value) => update('odometer', value)}
-        placeholder="1650"
-        unit="km"
+        placeholder="18500"
+        unit={unit}
         numeric
         error={errors.odometer}
       />
@@ -142,7 +196,7 @@ export function MaintenanceFormSheet({
         value={draft.cost}
         onChangeText={(value) => update('cost', value)}
         placeholder="850"
-        unit="₱"
+        unit={currency === 'PHP' ? '₱' : currency}
         numeric
         error={errors.cost}
       />
@@ -175,39 +229,41 @@ export function MaintenanceFormSheet({
         multiline
       />
 
-      <View style={[styles.dueGroup, { borderTopColor: theme.border }]}>
-        <Text style={[Typography.label, { color: theme.textMuted }]}>Next due</Text>
-        <Input
-          label="Odometer (optional)"
-          value={draft.nextDueKm}
-          onChangeText={(value) => update('nextDueKm', value)}
-          placeholder="3650"
-          unit="km"
-          numeric
-          error={errors.nextDueKm}
-        />
-        <DateField
-          label="Date (optional)"
-          value={draft.nextDueDate}
-          onChange={(value) => update('nextDueDate', value)}
-          error={errors.nextDueDate}
-          clearable
-        />
-        <Text style={[styles.hint, { color: theme.textMuted }]}>
-          Date dues send reminders. Kilometer dues show here in the app.
-        </Text>
-      </View>
+      {selectedItem === null ? (
+        <View style={[styles.dueGroup, { borderTopColor: theme.border }]}>
+          <Text style={[Typography.label, { color: theme.textMuted }]}>Next due</Text>
+          <Input
+            label={`Odometer (optional)`}
+            value={draft.nextDueKm}
+            onChangeText={(value) => update('nextDueKm', value)}
+            placeholder="21500"
+            unit={unit}
+            numeric
+            error={errors.nextDueKm}
+          />
+          <DateField
+            label="Date (optional)"
+            value={draft.nextDueDate}
+            onChange={(value) => update('nextDueDate', value)}
+            error={errors.nextDueDate}
+            clearable
+          />
+          <Text style={[styles.hint, { color: theme.textMuted }]}>
+            Date dues send reminders. Distance dues show in the app.
+          </Text>
+        </View>
+      ) : null}
 
       {formError !== null ? (
         <Text style={[Typography.body, { color: theme.dangerInk }]}>{formError}</Text>
       ) : null}
 
       <View style={styles.actions}>
-        <Button label="Cancel" onPress={onClose} variant="secondary" />
         <Button
-          label={initialLog === null ? 'Add service' : 'Save changes'}
+          label={initialLog === null ? 'Log service' : 'Save changes'}
           onPress={handleSave}
           loading={saving}
+          fullWidth
         />
       </View>
 
@@ -228,7 +284,7 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   chip: {
-    minHeight: ControlHeight,
+    minHeight: 40,
     paddingHorizontal: Spacing.three,
     borderRadius: Radius.pill,
     borderWidth: 1,
@@ -237,6 +293,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontWeight: '600',
+    fontSize: 14,
   },
   toggleRow: {
     flexDirection: 'row',
@@ -254,6 +311,7 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontSize: 13,
+    lineHeight: 18,
   },
   actions: {
     flexDirection: 'row',

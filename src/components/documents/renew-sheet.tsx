@@ -28,8 +28,7 @@ export function RenewSheet({ document, onClose, onRenew }: RenewSheetProps) {
   }
 
   return (
-    <BottomSheet onClose={onClose} dismissLabel="Close renewal form">
-      <Text style={[Typography.title, { color: theme.text }]}>Mark as renewed</Text>
+    <BottomSheet onClose={onClose} dismissLabel="Close renewal form" title="Mark as renewed">
       <Text style={[Typography.body, { color: theme.textMuted }]}>
         {DOCUMENT_LABELS[document.type]}
         {document.name === null ? '' : ` · ${document.name}`}
@@ -47,8 +46,7 @@ export function RenewSheet({ document, onClose, onRenew }: RenewSheetProps) {
         The old record stays in History. Reminders move to the new expiry date.
       </Text>
       <View style={styles.actions}>
-        <Button label="Cancel" variant="secondary" onPress={onClose} />
-        <Button label="Save renewal" onPress={handleRenew} />
+        <Button label="Save renewal" onPress={handleRenew} fullWidth />
       </View>
     </BottomSheet>
   );

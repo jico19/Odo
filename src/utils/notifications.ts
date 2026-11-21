@@ -14,12 +14,16 @@ import { Platform } from 'react-native';
 import type { Document } from '@/types/document';
 import { DOCUMENT_LABELS } from '@/types/document';
 import { MAINTENANCE_LABELS, type MaintenanceLog } from '@/types/maintenance';
-import { getDocumentStatus } from '@/utils/calculations';
+import type { PmsItem } from '@/types/pms';
+import type { ReminderLeadDays } from '@/types/preferences';
+import { daysBetween, getDocumentStatus } from '@/utils/calculations';
+import { getPmsDueDate } from '@/utils/pms';
 
 const CHANNEL_ID = 'maintenance-reminders';
 const DOCUMENT_CHANNEL_ID = 'document-reminders';
 const REMINDER_HOUR = 9;
 const DOCUMENT_OFFSETS = [30, 14, 7, 1, 0] as const;
+export const PMS_LEAD_OPTIONS = [1, 3, 7] as const;
 
 let configured = false;
 
@@ -53,16 +57,24 @@ export function setupNotifications(): void {
   }
 }
 
-async function ensurePermission(): Promise<boolean> {
+export async function hasNotificationPermission(): Promise<boolean> {
   setupNotifications();
   if (!isNative()) return false;
 
   try {
     const current = await getPermissionsAsync();
-    if (current.granted || current.ios?.status === IosAuthorizationStatus.PROVISIONAL) {
-      return true;
-    }
+    return current.granted || current.ios?.status === IosAuthorizationStatus.PROVISIONAL;
+  } catch {
+    return false;
+  }
+}
 
+export async function ensureNotificationPermission(): Promise<boolean> {
+  const current = await hasNotificationPermission();
+  if (current) return true;
+  if (!isNative()) return false;
+
+  try {
     const next = await requestPermissionsAsync({
       ios: { allowAlert: true, allowBadge: false, allowSound: false },
     });
@@ -124,7 +136,7 @@ export async function cancelMaintenanceReminder(logId: number): Promise<void> {
 export async function syncMaintenanceReminder(log: MaintenanceLog): Promise<void> {
   if (!isNative()) return;
   await cancelMaintenanceReminder(log.id);
-  if (log.nextDueDate === null || !(await ensurePermission())) return;
+  if (log.nextDueDate === null || !(await hasNotificationPermission())) return;
 
   const eve = nextReminderTime(log.nextDueDate, -1);
   const due = nextReminderTime(log.nextDueDate, 0);
@@ -157,7 +169,7 @@ export async function syncDocumentReminders(document: Document, today: string): 
   // Superseded and expired documents never get pending reminders.
   if (document.superseded) return;
   if (getDocumentStatus(document.expiryDate, today).status === 'expired') return;
-  if (!(await ensurePermission())) return;
+  if (!(await hasNotificationPermission())) return;
 
   const channelId = Platform.OS === 'android' ? DOCUMENT_CHANNEL_ID : undefined;
   const label = DOCUMENT_LABELS[document.type];
@@ -179,6 +191,61 @@ export async function syncDocumentReminders(document: Document, today: string): 
       });
     } catch {
       // A failed reminder must not block saving a document.
+    }
+  }
+}
+
+function pmsIdentifier(itemId: number, offset: number): string {
+  return `pms-${itemId}-${offset}`;
+}
+
+export async function cancelPmsReminders(itemId: number): Promise<void> {
+  if (!isNative()) return;
+
+  try {
+    await Promise.all(
+      [1, 3, 7, 0].map((offset) =>
+        cancelScheduledNotificationAsync(pmsIdentifier(itemId, offset))
+      )
+    );
+  } catch {
+    // Cancelling an already-fired reminder is harmless.
+  }
+}
+
+export async function syncPmsReminder(
+  item: PmsItem,
+  leadDays: ReminderLeadDays,
+  today: string
+): Promise<void> {
+  if (!isNative()) return;
+  await cancelPmsReminders(item.id);
+
+  if (!item.enabled || item.intervalDays === null) return;
+  const dueDate = getPmsDueDate(item);
+  if (dueDate === null || daysBetween(today, dueDate) < 0) return;
+  if (!(await hasNotificationPermission())) return;
+
+  const channelId = Platform.OS === 'android' ? CHANNEL_ID : undefined;
+
+  for (const offset of [leadDays, 0]) {
+    const trigger = nextReminderTime(dueDate, -offset);
+    if (trigger === null) continue;
+
+    const title =
+      offset === 0 ? `${item.label} due today` : `${item.label} due in ${offset} day${offset === 1 ? '' : 's'}`;
+    try {
+      await scheduleNotificationAsync({
+        identifier: pmsIdentifier(item.id, offset),
+        content: {
+          title,
+          body: 'Open Odo to check the service and your odometer.',
+          data: { pmsItemId: item.id },
+        },
+        trigger: { type: SchedulableTriggerInputTypes.DATE, date: trigger, channelId },
+      });
+    } catch {
+      // A failed reminder must not block saving a PMS item.
     }
   }
 }

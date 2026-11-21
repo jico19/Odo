@@ -21,6 +21,7 @@ import {
 import type { GeoPoint, Trip } from '@/types/trip';
 import { filterUsablePoints, tripDistanceKm } from '@/utils/geo';
 
+import { useDataSync } from './use-data-sync';
 import { useVehicle } from './use-vehicle';
 
 type PermissionState = 'unknown' | 'granted' | 'denied';
@@ -59,6 +60,7 @@ function toGeoPoints(tripId: number): GeoPoint[] {
 
 export function TripRecorderProvider({ children }: { children: ReactNode }) {
   const { vehicle, status: vehicleStatus } = useVehicle();
+  const { notifyDataChanged } = useDataSync();
   const [permission, setPermission] = useState<PermissionState>('unknown');
   const [canAskAgain, setCanAskAgain] = useState(true);
   const [status, setStatus] = useState<RecordingStatus>('idle');
@@ -200,13 +202,14 @@ export function TripRecorderProvider({ children }: { children: ReactNode }) {
     setStatus('starting');
     try {
       await begin(createTrip(vehicle.id));
+      notifyDataChanged();
     } catch (cause) {
       setStatus('idle');
       setError(toErrorMessage(cause));
     } finally {
       startingRef.current = false;
     }
-  }, [begin, status, vehicle]);
+  }, [begin, notifyDataChanged, status, vehicle]);
 
   const stop = useCallback(async () => {
     const trip = tripRef.current;
@@ -219,6 +222,7 @@ export function TripRecorderProvider({ children }: { children: ReactNode }) {
     const distance = tripDistanceKm(filterUsablePoints(pointsRef.current));
     try {
       finishTrip(trip.id, new Date().toISOString(), distance);
+      notifyDataChanged();
     } catch (cause) {
       setError(toErrorMessage(cause));
     }
@@ -230,7 +234,7 @@ export function TripRecorderProvider({ children }: { children: ReactNode }) {
     setDistanceKm(0);
     setElapsedSeconds(0);
     setStatus('idle');
-  }, []);
+  }, [notifyDataChanged]);
 
   const allowLocation = useCallback(async () => {
     try {

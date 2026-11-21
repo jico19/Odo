@@ -288,7 +288,6 @@ export function getMaintenanceProgress(
   today: string
 ): DueProgress | null {
   const tone = getMaintenanceStatus(record, currentOdometer, today);
-  const candidates: (DueProgress & { ratio: number })[] = [];
 
   if (
     record.nextDueKm !== null &&
@@ -297,24 +296,18 @@ export function getMaintenanceProgress(
   ) {
     const max = record.nextDueKm - record.odometer;
     const value = Math.min(Math.max(currentOdometer - record.odometer, 0), max);
-    candidates.push({ value, max, tone, basis: 'km', ratio: value / max });
+    return { value, max, tone, basis: 'km' };
   }
 
   if (record.nextDueDate !== null) {
     const max = daysBetween(record.date, record.nextDueDate);
     if (max > 0) {
       const value = Math.min(Math.max(daysBetween(record.date, today), 0), max);
-      candidates.push({ value, max, tone, basis: 'date', ratio: value / max });
+      return { value, max, tone, basis: 'date' };
     }
   }
 
-  const nearest = candidates.reduce<(DueProgress & { ratio: number }) | null>((best, candidate) => {
-    if (best === null) return candidate;
-    return candidate.ratio > best.ratio ? candidate : best;
-  }, null);
-
-  if (nearest === null) return null;
-  return { value: nearest.value, max: nearest.max, tone: nearest.tone, basis: nearest.basis };
+  return null;
 }
 
 function dueScore(record: DueRecord, currentOdometer: number, today: string): number {

@@ -8,9 +8,9 @@ import { localDateKey } from '@/hooks/use-today';
 import { useTheme } from '@/hooks/use-theme';
 import type { NewFuelLog } from '@/types/fuel';
 import { roundTo } from '@/utils/calculations';
-import { parseOdometer } from '@/utils/validation';
+import { isValidDate, parseOdometer } from '@/utils/validation';
 
-import { Input } from '../ui';
+import { DateField, Input } from '../ui';
 
 type QuickEntryDrawerProps = {
   defaultOdometer: number;
@@ -19,6 +19,7 @@ type QuickEntryDrawerProps = {
 };
 
 type QuickErrors = {
+  date?: string;
   odometer?: string;
   liters?: string;
   totalAmount?: string;
@@ -26,6 +27,7 @@ type QuickErrors = {
 
 export function QuickEntryDrawer({ defaultOdometer, onClose, onSave }: QuickEntryDrawerProps) {
   const theme = useTheme();
+  const [date, setDate] = useState(() => localDateKey(new Date()));
   const [odometer, setOdometer] = useState(() => String(defaultOdometer));
   const [liters, setLiters] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
@@ -39,8 +41,9 @@ export function QuickEntryDrawer({ defaultOdometer, onClose, onSave }: QuickEntr
     setFormError(null);
   }
 
-  function setField(field: 'odometer' | 'liters' | 'totalAmount', value: string) {
-    if (field === 'odometer') setOdometer(value);
+  function setField(field: keyof QuickErrors, value: string) {
+    if (field === 'date') setDate(value);
+    else if (field === 'odometer') setOdometer(value);
     else if (field === 'liters') setLiters(value);
     else setTotalAmount(value);
   }
@@ -51,6 +54,9 @@ export function QuickEntryDrawer({ defaultOdometer, onClose, onSave }: QuickEntr
     const totalValue = parseOdometer(totalAmount);
     const nextErrors: QuickErrors = {};
 
+    if (!isValidDate(date)) {
+      nextErrors.date = 'Use a valid date in YYYY-MM-DD format.';
+    }
     if (odometerValue === null || odometerValue < 0) {
       nextErrors.odometer = 'Enter an odometer value of 0 or more.';
     }
@@ -71,9 +77,14 @@ export function QuickEntryDrawer({ defaultOdometer, onClose, onSave }: QuickEntr
       return;
     }
 
+    if (fullTank && odometerValue === defaultOdometer) {
+      setFormError('Odometer did not change. Efficiency needs a higher reading.');
+      return;
+    }
+
     try {
       onSave({
-        date: localDateKey(new Date()),
+        date,
         liters: litersValue,
         pricePerLiter: litersValue > 0 ? roundTo(totalValue / litersValue, 2) : 0,
         totalCost: roundTo(totalValue, 2),
@@ -123,6 +134,12 @@ export function QuickEntryDrawer({ defaultOdometer, onClose, onSave }: QuickEntr
                 </Pressable>
               </View>
 
+              <DateField
+                label="Date"
+                value={date}
+                onChange={(value) => update('date', value)}
+                error={errors.date}
+              />
               <Input
                 label="Odometer (KM)"
                 value={odometer}
@@ -166,7 +183,10 @@ export function QuickEntryDrawer({ defaultOdometer, onClose, onSave }: QuickEntr
                 </View>
                 <Switch
                   value={fullTank}
-                  onValueChange={setFullTank}
+                  onValueChange={(value) => {
+                    setFullTank(value);
+                    setFormError(null);
+                  }}
                   trackColor={{ false: theme.border, true: theme.accentSoft }}
                   thumbColor={fullTank ? theme.accent : theme.surface}
                   ios_backgroundColor={theme.border}

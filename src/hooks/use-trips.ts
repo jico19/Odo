@@ -1,9 +1,10 @@
-import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
 import { ensureDatabase } from '@/db/database';
 import { deleteTrip, listTripPreviewRoutes, listTrips } from '@/db/queries';
 import type { GeoPoint, Trip } from '@/types/trip';
+
+import { useDataSync, useDatabaseReload } from './use-data-sync';
 
 type TripStatus = 'loading' | 'ready' | 'error';
 
@@ -12,6 +13,7 @@ function toErrorMessage(error: unknown): string {
 }
 
 export function useTrips(vehicleId: number) {
+  const { notifyDataChanged } = useDataSync();
   const [status, setStatus] = useState<TripStatus>('loading');
   const [trips, setTrips] = useState<Trip[]>([]);
   const [routes, setRoutes] = useState<Map<number, GeoPoint[]>>(new Map());
@@ -40,12 +42,7 @@ export function useTrips(vehicleId: number) {
     };
   }, [vehicleId]);
 
-  useFocusEffect(
-    useCallback(() => {
-      const cleanup = load();
-      return () => cleanup?.();
-    }, [load])
-  );
+  useDatabaseReload(load);
 
   const refresh = useCallback(() => {
     setStatus('loading');
@@ -57,8 +54,9 @@ export function useTrips(vehicleId: number) {
       deleteTrip(id);
       setTrips(listTrips(vehicleId));
       setRoutes(new Map(listTripPreviewRoutes(vehicleId).map((route) => [route.tripId, route.points])));
+      notifyDataChanged();
     },
-    [vehicleId]
+    [notifyDataChanged, vehicleId]
   );
 
   return { status, trips, routes, error, refresh, remove };

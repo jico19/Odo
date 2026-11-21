@@ -5,14 +5,17 @@ import { type IconName } from '@/components/ui';
 import { LightCardShadow, Radius, Spacing, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
-import { MAINTENANCE_LABELS, type MaintenanceLog } from '@/types/maintenance';
+import type { MaintenanceLog } from '@/types/maintenance';
+import type { PmsItem } from '@/types/pms';
 import type { TodayRideStats } from '@/utils/calculations';
 import { formatDateShort, formatDuration, formatNumber, formatOdometer } from '@/utils/format';
+import { maintenanceLabel } from '@/utils/pms';
 
 type TelemetryTilesProps = {
   efficiency: number | null;
   trend: number | null;
   lastService: MaintenanceLog | null;
+  pmsItems: readonly PmsItem[];
   ride: TodayRideStats;
   columns: number;
 };
@@ -31,6 +34,7 @@ export function TelemetryTiles({
   efficiency,
   trend,
   lastService,
+  pmsItems,
   ride,
   columns,
 }: TelemetryTilesProps) {
@@ -57,7 +61,7 @@ export function TelemetryTiles({
       detail:
         lastService === null
           ? 'NO SERVICE LOGGED'
-          : `${formatDateShort(lastService.date)} · ${MAINTENANCE_LABELS[lastService.type].toUpperCase()}`,
+          : `${formatDateShort(lastService.date)} · ${maintenanceLabel(lastService, pmsItems).toUpperCase()}`,
       detailIcon: 'calendar-outline',
     },
     {

@@ -4,6 +4,7 @@ export { DateField, type DateFieldProps } from './date-field';
 export { EmptyState, type EmptyStateProps } from './empty-state';
 export { Gauge, type GaugeProps } from './gauge';
 export { Input, type InputProps } from './input';
+export { PhotoPreview, type PhotoPreviewProps } from './photo-preview';
 export { type IconName, type ListRowProps, ListRow } from './list-row';
 export { ProgressBar, type ProgressBarProps } from './progress-bar';
 export { SkeletonCard, type SkeletonCardProps, SkeletonLine, type SkeletonLineProps } from './skeleton';

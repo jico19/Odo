@@ -1,6 +1,7 @@
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { Redirect, router } from 'expo-router';
 import { useMemo, useState, type ReactNode } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/app-header';
@@ -11,6 +12,7 @@ import { ComplianceCard } from '@/components/documents/compliance-card';
 import { QuickEntryDrawer } from '@/components/fuel/quick-entry-drawer';
 import { MaintenanceFormSheet } from '@/components/maintenance/maintenance-form-sheet';
 import { MaintenanceRow } from '@/components/maintenance/maintenance-row';
+import { PmsRow, pmsTone } from '@/components/pms/pms-row';
 import { QuickAddRow } from '@/components/quick-add-row';
 import { UpdateOdometerSheet } from '@/components/update-odometer-sheet';
 import { Button, EmptyState, ListRow, SkeletonLine } from '@/components/ui';
@@ -19,10 +21,13 @@ import { useDocuments } from '@/hooks/use-documents';
 import { useFuelLogs } from '@/hooks/use-fuel-logs';
 import { useMaintenanceLogs } from '@/hooks/use-maintenance';
 import { useMechanicVisits } from '@/hooks/use-mechanic-visits';
+import { usePmsItems } from '@/hooks/use-pms-items';
+import { usePreferences } from '@/hooks/use-preferences';
 import { useTheme } from '@/hooks/use-theme';
 import { useToday } from '@/hooks/use-today';
 import { useTrips } from '@/hooks/use-trips';
 import { useVehicle } from '@/hooks/use-vehicle';
+import type { DueInfo } from '@/utils/calculations';
 import type { NewMaintenanceLog } from '@/types/maintenance';
 import type { Trip } from '@/types/trip';
 import {
@@ -35,6 +40,7 @@ import {
   getTodayRideStats,
   getUpcoming,
 } from '@/utils/calculations';
+import { getPmsProgress, maintenanceLabel, sortPmsItems } from '@/utils/pms';
 import {
   formatCurrency,
   formatDateShort,
@@ -82,6 +88,8 @@ export default function DashboardScreen() {
     error: tripError,
     refresh: refreshTrips,
   } = useTrips(vehicle?.id ?? 0);
+  const pms = usePmsItems(vehicle?.id ?? 0);
+  const preferences = usePreferences();
   const today = useToday();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [quickFuelOpen, setQuickFuelOpen] = useState(false);
@@ -94,6 +102,10 @@ export default function DashboardScreen() {
   const efficiencyTrend = useMemo(() => getEfficiencyTrend(stats, today), [stats, today]);
   const bestEfficiency = useMemo(() => getBestEfficiency(stats), [stats]);
   const todayRide = useMemo(() => getTodayRideStats(trips, today), [trips, today]);
+  const pmsEntries = useMemo(
+    () => sortPmsItems(pms.items.filter((item) => item.enabled), vehicle?.odometer ?? 0, today),
+    [pms.items, vehicle?.odometer, today]
+  );
 
   const loading =
     status === 'loading' ||
@@ -101,15 +113,31 @@ export default function DashboardScreen() {
     maintenanceStatus === 'loading' ||
     documentStatus === 'loading' ||
     mechanicStatus === 'loading' ||
+    pms.status === 'loading' ||
+    preferences.status === 'loading' ||
     (vehicle !== null && tripStatus === 'loading');
 
   if (loading) return <DashboardSkeleton />;
   if (vehicle === null) return <Redirect href="/onboarding" />;
 
-  const nextService = upcoming[0] ?? null;
-  const nextDue = nextService === null ? null : getDueInfo(nextService, vehicle.odometer, today);
+  const nextPms = pmsEntries[0] ?? null;
+  const fallbackService = upcoming[0] ?? null;
+  const nextDue: DueInfo | null =
+    nextPms !== null
+      ? {
+          status: pmsTone(nextPms.status.status),
+          kmLeft: nextPms.status.kmLeft,
+          daysLeft: nextPms.status.daysLeft,
+        }
+      : fallbackService === null
+        ? null
+        : getDueInfo(fallbackService, vehicle.odometer, today);
   const nextProgress =
-    nextService === null ? null : getMaintenanceProgress(nextService, vehicle.odometer, today);
+    nextPms !== null
+      ? getPmsProgress(nextPms.item, vehicle.odometer, today)
+      : fallbackService === null
+        ? null
+        : getMaintenanceProgress(fallbackService, vehicle.odometer, today);
   const remainingServices = upcoming.slice(1);
   const lastFuel = logs[0] ?? null;
   const lastVisit = mechanicVisits[0] ?? null;
@@ -128,6 +156,7 @@ export default function DashboardScreen() {
         vehicleName={vehicle.name}
         odometer={vehicle.odometer}
         subtitle={`${vehicle.plate ?? 'No plate added'} · ${formatOdometer(vehicle.odometer)} km`}
+        onSettingsPress={() => router.push('/settings')}
       />
       <ScrollView
         contentContainerStyle={[
@@ -151,6 +180,29 @@ export default function DashboardScreen() {
           </View>
         ) : null}
 
+        {vehicle.transmissionType === null && !preferences.preferences.setupBannerDismissed ? (
+          <View style={[styles.banner, { backgroundColor: theme.warningSoft, borderColor: theme.warning }]}>
+            <Ionicons name="information-circle-outline" size={20} color={theme.warningInk} accessible={false} />
+            <Pressable
+              onPress={() => router.push({ pathname: '/settings', params: { section: 'motorcycle' } })}
+              accessibilityRole="button"
+              accessibilityLabel="Set your transmission type to get a PMS checklist"
+              style={styles.bannerCopy}>
+              <Text style={[Typography.body, styles.bannerText, { color: theme.warningInk }]}>
+                Set your transmission type to get a PMS checklist
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => preferences.update('setupBannerDismissed', true)}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss setup reminder"
+              hitSlop={8}
+              style={styles.bannerDismiss}>
+              <Ionicons name="close" size={18} color={theme.warningInk} accessible={false} />
+            </Pressable>
+          </View>
+        ) : null}
+
         <SectionTitle>Telemetry gauges</SectionTitle>
         <GaugeHero
           odometer={vehicle.odometer}
@@ -168,6 +220,7 @@ export default function DashboardScreen() {
           efficiency={stats.averageKmPerLiter}
           trend={efficiencyTrend}
           lastService={maintenanceLogs[0] ?? null}
+          pmsItems={pms.items}
           ride={todayRide}
           columns={paired ? 3 : 1}
         />
@@ -245,15 +298,22 @@ export default function DashboardScreen() {
           ]}
         />
 
-        <SectionTitle>Upcoming maintenance</SectionTitle>
-        {remainingServices.length === 0 ? (
+        <SectionTitle>Next service</SectionTitle>
+        {pmsEntries.length > 0 ? (
+          <View style={styles.list}>
+            {pmsEntries.slice(0, 4).map((entry) => (
+              <PmsRow
+                key={entry.item.id}
+                entry={entry}
+                distanceUnit={preferences.preferences.distanceUnit}
+                onPress={() => router.push('/maintenance')}
+              />
+            ))}
+          </View>
+        ) : remainingServices.length === 0 ? (
           <EmptyState
-            icon="construct-outline"
-            message={
-              upcoming.length === 0
-                ? 'No service due. Add a due km or date in Maintenance.'
-                : 'No other service due right now.'
-            }
+            icon="clipboard-outline"
+            message="No service checklist yet. Set your transmission type in Settings."
           />
         ) : (
           <View style={styles.list}>
@@ -261,6 +321,7 @@ export default function DashboardScreen() {
               <MaintenanceRow
                 key={log.id}
                 log={log}
+                label={maintenanceLabel(log, pms.items)}
                 currentOdometer={vehicle.odometer}
                 today={today}
                 onPress={() => router.push('/maintenance')}
@@ -291,6 +352,9 @@ export default function DashboardScreen() {
       {editor === 'maintenance' ? (
         <MaintenanceFormSheet
           initialLog={null}
+          pmsItems={pms.items}
+          distanceUnit={preferences.preferences.distanceUnit}
+          currency={preferences.preferences.currency}
           onClose={() => setEditor(null)}
           onDelete={() => setEditor(null)}
           onSave={(input: NewMaintenanceLog) => {
@@ -397,6 +461,29 @@ const styles = StyleSheet.create({
   },
   errorRow: {
     gap: Spacing.two,
+  },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderRadius: Radius.control,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  bannerCopy: {
+    flex: 1,
+    minHeight: 40,
+    justifyContent: 'center',
+  },
+  bannerText: {
+    fontSize: 14,
+  },
+  bannerDismiss: {
+    width: 32,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   list: {
     gap: Spacing.two,

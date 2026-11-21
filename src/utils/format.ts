@@ -1,3 +1,5 @@
+import type { DistanceUnit } from '@/types/preferences';
+
 const odometerFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 const decimalFormatters = new Map<number, Intl.NumberFormat>();
 const currencyFormatter = new Intl.NumberFormat(undefined, {
@@ -5,8 +7,34 @@ const currencyFormatter = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 2,
 });
 
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  PHP: '₱',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  JPY: '¥',
+};
+
 export function formatOdometer(value: number): string {
   return odometerFormatter.format(value);
+}
+
+export function formatDistance(valueKm: number, unit: DistanceUnit = 'km', digits = 2): string {
+  const value = unit === 'mi' ? valueKm / 1.609344 : valueKm;
+  if (digits === 0) return odometerFormatter.format(Math.round(value));
+  return formatNumber(value, digits);
+}
+
+export function distanceUnitLabel(unit: DistanceUnit): string {
+  return unit === 'mi' ? 'mi' : 'km';
+}
+
+export function distanceValue(valueKm: number, unit: DistanceUnit = 'km'): number {
+  return unit === 'mi' ? valueKm / 1.609344 : valueKm;
+}
+
+export function distanceToKm(value: number, unit: DistanceUnit = 'km'): number {
+  return unit === 'mi' ? value * 1.609344 : value;
 }
 
 export function formatNumber(value: number, digits = 2): string {
@@ -21,8 +49,9 @@ export function formatNumber(value: number, digits = 2): string {
   return formatter.format(value);
 }
 
-export function formatCurrency(value: number): string {
-  return `₱${currencyFormatter.format(value)}`;
+export function formatCurrency(value: number, currency = 'PHP'): string {
+  const symbol = CURRENCY_SYMBOLS[currency] ?? `${currency} `;
+  return `${symbol}${currencyFormatter.format(value)}`;
 }
 
 export function formatDuration(totalSeconds: number): string {

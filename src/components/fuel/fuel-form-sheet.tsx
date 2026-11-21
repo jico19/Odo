@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { ControlHeight, Radius, Spacing, Typography } from '@/constants/theme';
 import { localDateKey } from '@/hooks/use-today';
@@ -18,6 +18,7 @@ type FuelFormSheetProps = {
   initialLog: FuelLog | null;
   onClose: () => void;
   onSave: (input: NewFuelLog) => void;
+  onDelete: () => void;
 };
 
 function toDraft(log: FuelLog | null): FuelDraft {
@@ -30,7 +31,7 @@ function toDraft(log: FuelLog | null): FuelDraft {
   };
 }
 
-export function FuelFormSheet({ initialLog, onClose, onSave }: FuelFormSheetProps) {
+export function FuelFormSheet({ initialLog, onClose, onSave, onDelete }: FuelFormSheetProps) {
   const theme = useTheme();
   const [draft, setDraft] = useState<FuelDraft>(() => toDraft(initialLog));
   const [errors, setErrors] = useState<FuelFieldErrors>({});
@@ -66,12 +67,18 @@ export function FuelFormSheet({ initialLog, onClose, onSave }: FuelFormSheetProp
     }
   }
 
-  return (
-    <BottomSheet onClose={onClose} dismissLabel="Close fuel form">
-      <Text style={[Typography.title, { color: theme.text }]}>
-        {initialLog === null ? 'Add fuel' : 'Edit fuel'}
-      </Text>
+  function handleDelete() {
+    Alert.alert('Delete this fuel log?', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: onDelete },
+    ]);
+  }
 
+  return (
+    <BottomSheet
+      onClose={onClose}
+      dismissLabel="Close fuel form"
+      title={initialLog === null ? 'Add fuel' : 'Edit fuel'}>
       <DateField
         label="Date"
         value={draft.date}
@@ -142,13 +149,17 @@ export function FuelFormSheet({ initialLog, onClose, onSave }: FuelFormSheetProp
       ) : null}
 
       <View style={styles.actions}>
-        <Button label="Cancel" onPress={onClose} variant="secondary" />
         <Button
           label={initialLog === null ? 'Add fuel' : 'Save changes'}
           onPress={handleSave}
           loading={saving}
+          fullWidth
         />
       </View>
+
+      {initialLog !== null ? (
+        <Button label="Delete log" onPress={handleDelete} variant="ghost" />
+      ) : null}
     </BottomSheet>
   );
 }

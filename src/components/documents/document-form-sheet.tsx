@@ -1,9 +1,8 @@
-import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { BottomSheet, Button, DateField, Input } from '@/components/ui';
+import { BottomSheet, Button, DateField, Input, PhotoPreview } from '@/components/ui';
 import { ControlHeight, Radius, Spacing, Typography } from '@/constants/theme';
 import { localDateKey } from '@/hooks/use-today';
 import { useTheme } from '@/hooks/use-theme';
@@ -113,11 +112,10 @@ export function DocumentFormSheet({
   }
 
   return (
-    <BottomSheet onClose={onClose} dismissLabel="Close document form">
-      <Text style={[Typography.title, { color: theme.text }]}>
-        {initialDocument === null ? 'Add document' : 'Edit document'}
-      </Text>
-
+    <BottomSheet
+      onClose={onClose}
+      dismissLabel="Close document form"
+      title={initialDocument === null ? 'Add document' : 'Edit document'}>
       <View style={styles.field}>
         <Text style={[Typography.label, { color: theme.textMuted }]}>Type</Text>
         <View style={styles.chips}>
@@ -189,14 +187,12 @@ export function DocumentFormSheet({
 
       <View style={[styles.photoGroup, { borderTopColor: theme.border }]}>
         <Text style={[Typography.label, { color: theme.textMuted }]}>Photo</Text>
-        {draft.photoUri !== null ? (
-          <Image
-            source={{ uri: draft.photoUri }}
-            style={[styles.preview, { borderColor: theme.border }]}
-            contentFit="cover"
-            accessibilityLabel="Selected document photo"
-          />
-        ) : null}
+        <PhotoPreview
+          uri={draft.photoUri}
+          label="document photo"
+          style={styles.preview}
+          contentFit="cover"
+        />
         <View style={styles.photoActions}>
           <Button
             label="Choose from gallery"
@@ -220,8 +216,11 @@ export function DocumentFormSheet({
       </View>
 
       <View style={styles.actions}>
-        <Button label="Cancel" onPress={onClose} variant="secondary" />
-        <Button label={initialDocument === null ? 'Add document' : 'Save changes'} onPress={handleSave} />
+        <Button
+          label={initialDocument === null ? 'Add document' : 'Save changes'}
+          onPress={handleSave}
+          fullWidth
+        />
       </View>
 
       {initialDocument !== null && !initialDocument.superseded ? (

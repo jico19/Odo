@@ -7,11 +7,18 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { Button } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { useAppearanceSync } from '@/hooks/use-appearance-sync';
 import { TripRecorderProvider } from '@/hooks/use-trip-recorder';
+import { DataSyncProvider } from '@/hooks/use-data-sync';
 import { VehicleProvider, useVehicle } from '@/hooks/use-vehicle';
 import { setupNotifications } from '@/utils/notifications';
 
 SplashScreen.preventAutoHideAsync();
+
+function AppearanceSync() {
+  useAppearanceSync();
+  return null;
+}
 
 function AppNavigator() {
   const { status, error, retry } = useVehicle();
@@ -40,11 +47,14 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <VehicleProvider>
-        <TripRecorderProvider>
-          <AppNavigator />
-        </TripRecorderProvider>
-      </VehicleProvider>
+      <DataSyncProvider>
+        <AppearanceSync />
+        <VehicleProvider>
+          <TripRecorderProvider>
+            <AppNavigator />
+          </TripRecorderProvider>
+        </VehicleProvider>
+      </DataSyncProvider>
       <AnimatedSplashOverlay />
     </ThemeProvider>
   );

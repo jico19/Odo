@@ -1,4 +1,7 @@
-import { ListRow, StatusChip, type IconName } from '@/components/ui';
+import { StyleSheet } from 'react-native';
+
+import { ListRow, PhotoPreview, StatusChip, type IconName } from '@/components/ui';
+import { Radius } from '@/constants/theme';
 import { documentChip, daysLeftLabel, getDocumentStatus } from '@/utils/calculations';
 import { DOCUMENT_LABELS, type Document, type DocumentType } from '@/types/document';
 import { formatDateShort } from '@/utils/format';
@@ -33,8 +36,25 @@ export function DocumentRow({ document, today, onPress, divider }: DocumentRowPr
       badge={<StatusChip tone={chip.tone} label={chip.label} />}
       value={daysLeftLabel(due.daysLeft)}
       date={formatDateShort(document.expiryDate)}
+      accessory={
+        document.photoUri === null ? undefined : (
+          <PhotoPreview
+            uri={document.photoUri}
+            label={`${DOCUMENT_LABELS[document.type]} photo`}
+            style={styles.photo}
+          />
+        )
+      }
       onPress={onPress}
       divider={divider}
     />
   );
 }
+
+const styles = StyleSheet.create({
+  photo: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.control,
+  },
+});

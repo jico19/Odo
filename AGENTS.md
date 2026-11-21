@@ -25,13 +25,14 @@ Expo ships breaking changes every SDK release. APIs you remember are likely rena
 ```
 src/
   app/            # Screens and layouts (Expo Router)
-    (tabs)/       # index (dashboard), fuel, maintenance, mechanic, trips
-  components/     # Reusable UI components, incl. documents/ (panel, rows, forms, dashboard card)
-  db/             # database.ts (open + migrations), queries.ts (all SQL, incl. documents)
-  hooks/          # Data hooks (useFuelLogs, useTrips, useDocuments, ...)
-  utils/          # Pure functions (calculations incl. document status, formatters, haversine, app-files)
+    (tabs)/       # dashboard, fuel, maintenance, mechanic, trips
+    onboarding.tsx, settings.tsx
+  components/     # Reusable UI components, incl. documents/, onboarding/, pms/, settings/
+  db/             # database.ts (open + migrations), queries.ts (all SQL)
+  hooks/          # Data hooks (useFuelLogs, useTrips, usePmsItems, usePreferences, ...)
+  utils/          # Pure functions (calculations, PMS status, document status, formatters, haversine, app-files)
   types/          # Shared TypeScript types
-  constants/      # Shared theme (colors, spacing) — theme.ts
+  constants/      # Shared theme (theme.ts) and editable PMS defaults (pmsTemplates.ts)
 assets/           # Images, fonts, icons
 ```
 
@@ -55,6 +56,7 @@ Do NOT run `eas build`, `eas submit`, `eas update`, or deploy anything unless I 
 ## Navigation & Routing
 
 - Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators.
+- The five bottom tabs stay as-is. Settings is a modal/pushed screen at `/settings`, opened from the Dashboard header gear — never add a Settings tab.
 - Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
 - Docs: https://docs.expo.dev/router/introduction.md
 
@@ -65,7 +67,7 @@ Do NOT run `eas build`, `eas submit`, `eas update`, or deploy anything unless I 
 - Schema changes go through a numbered migration in `src/db/database.ts`. Never edit existing tables destructively.
 - Dates are stored as ISO 8601 strings. Money as numbers in the base currency unit. Distances in km, fuel in liters (convert only at display time).
 - `documents.expiry_date` is stored as an ISO 8601 date string (YYYY-MM-DD), entered manually exactly as shown on the document.
-- Tables: `vehicles`, `fuel_logs`, `maintenance_logs`, `mechanic_visits`, `trips`, `trip_points`, `documents`.
+- Tables: `vehicles`, `fuel_logs`, `maintenance_logs`, `mechanic_visits`, `trips`, `trip_points`, `documents`, `pms_items`, `preferences`.
 
 ### Documents schema (migration 3)
 
@@ -94,6 +96,38 @@ CREATE TABLE IF NOT EXISTS documents (
 
 `mechanic_visits` came from migration 1; migration 4 adds `parts TEXT` and `maintenance_logs.visit_id INTEGER`. Links are enforced in `src/db/queries.ts` (same-vehicle check) because SQLite cannot add a foreign key to an existing table via `ALTER TABLE`.
 
+### PMS, onboarding and preferences schema (migration 6)
+
+Migration 6 adds `vehicles.transmission_type` (nullable), `vehicles.is_liquid_cooled`, `vehicles.onboarding_completed`, `maintenance_logs.pms_item_id`, and these tables:
+
+```sql
+CREATE TABLE IF NOT EXISTS pms_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vehicle_id INTEGER NOT NULL,
+  type TEXT NOT NULL,
+  label TEXT NOT NULL,
+  interval_km REAL,
+  interval_days INTEGER,
+  default_interval_km REAL,
+  default_interval_days INTEGER,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  is_custom INTEGER NOT NULL DEFAULT 0,
+  last_done_odometer REAL,
+  last_done_date TEXT,
+  started_odometer REAL,
+  started_date TEXT,
+  UNIQUE (vehicle_id, type),
+  FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+);
+
+CREATE TABLE IF NOT EXISTS preferences (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+```
+
+Existing bikes are marked `onboarding_completed = 1` but get no PMS items. Transmission stays NULL so the dismissible Dashboard banner can offer setup.
+
 ## Domain Rules
 
 - Fuel efficiency (km/L) is calculated only between **full-tank** fill-ups.
@@ -102,6 +136,14 @@ CREATE TABLE IF NOT EXISTS documents (
 - Document reminders are local notifications at 30, 14, 7, and 1 day before expiry, plus one on the expiry day. Cancel and reschedule them on edit, renewal, or delete. Never schedule reminders for already-expired or superseded (`renewed_from_id`) records — iOS keeps only about 64 pending local notifications.
 - "Mark as renewed" asks for the new expiry date, creates a new record linked by `renewed_from_id`, and keeps the old one in history. Document photos live in the app's private document directory and are excluded from exports unless the user opts in.
 - Mechanic visits can link maintenance services through `maintenance_logs.visit_id`. Both records must belong to the same vehicle; deleting a visit unlinks its services instead of deleting them. Receipt photos live in the app's private document directory and are excluded from exports by default.
+- Onboarding has four steps (Bike, Engine, Intervals, Alerts). Keep all draft state in `useOnboarding`; create no vehicle until Finish. Closing mid-flow leaves no partial vehicle. Notification permission is requested on Finish, and denial is not an error.
+- Canonical transmission values are only `automatic`, `manual`, and `semi_automatic`. The UI label for `automatic` is "Automatic (including CVT)"; do not add a `CVT` value.
+- Saved `pms_items` are the source of truth for every status, gauge, and due date. `src/constants/pmsTemplates.ts` is editable default data and may be read only by reset/add-template flows (onboarding setup, Settings reset/re-enable, transmission diff). Never read a template to compute current status.
+- PMS status is date/odometer based: due when either interval is reached. An item with both editable intervals is due when either one is reached. Unknown last-done values fall back to the setup odometer/date. Disabled items are hidden from Upcoming and get no reminders.
+- Saving a maintenance log linked to a PMS item updates that item's `last_done_*` values. Any interval, enabled, or last-done change must recompute status, refresh Dashboard/Maintenance screens, and cancel/reschedule that item's date-based local notifications.
+- Changing transmission/cooling in Settings may offer add/re-enable/disable checklist changes, but only after confirmation. It never rewrites saved intervals or service history.
+- Preferences are display-only: distance unit, currency, appearance, reminder lead time, and the dismissed setup banner flag. Data stays stored in km/L and the base currency.
+- PMS reminders default to 1 day before the due date and on the due date; options are 1, 3, or 7 days. Use IDs `pms-${itemId}-${offset}` with offsets `[1,3,7,0]`. Skip expired and disabled items to conserve the limited local notification slots.
 - GPS trips: manual Start/Stop. Sample by distance or time interval to save battery. Distance is computed with the Haversine formula over consecutive points.
 - Location data stays on the device. Never send it anywhere or add analytics or network calls.
 
@@ -129,7 +171,7 @@ EAS is the approved path when a build/sign/submit/update is explicitly requested
 - Use `StyleSheet.create`. Keep a shared theme in `src/constants/theme.ts` (colors, spacing).
 - Handle loading, empty, and error states on every screen.
 - Validate form input (required fields, positive numbers) before saving.
-- Keep calculations in pure functions in `src/utils/calculations.ts` so they are easy to test.
+- Keep calculations in pure functions in `src/utils/calculations.ts` and PMS status/interval helpers in `src/utils/pms.ts` so they are easy to test.
 
 ## Workflow
 

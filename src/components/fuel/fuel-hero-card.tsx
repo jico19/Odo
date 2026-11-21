@@ -14,20 +14,28 @@ type FuelHeroCardProps = {
   average: number | null;
   series: ChartPoint[];
   trend: number | null;
+  fullTankCount: number;
   trough: TelemetryTroughData;
   target?: number;
 };
+
+function efficiencyHint(fullTankCount: number): string {
+  if (fullTankCount === 0) return 'No full tanks logged yet. Mark a fill as full tank to start.';
+  if (fullTankCount === 1) return '1 full tank logged. Log another at a higher odometer to see km/L.';
+  return `${fullTankCount} full tanks logged, but the odometer did not increase. Check the readings.`;
+}
 
 export function FuelHeroCard({
   average,
   series,
   trend,
+  fullTankCount,
   trough,
   target = 20,
 }: FuelHeroCardProps) {
   const theme = useTheme();
   const scheme = useColorScheme();
-  const hasTrend = series.length >= 2;
+  const hasTrend = series.length > 0;
   const trendLabel =
     trend === null
       ? 'TREND N/A'
@@ -78,7 +86,7 @@ export function FuelHeroCard({
       <View style={[styles.chartPanel, { backgroundColor: theme.background }]}>
         <View style={styles.chartHeader}>
           <Text style={[Typography.label, styles.chartCaption, { color: theme.textMuted }]}>
-            {series.length}-FILL EFFICIENCY TREND
+            {series.length}-INTERVAL EFFICIENCY TREND
           </Text>
           <Text style={[Typography.label, styles.chartCaption, { color: theme.accentInk }]}>
             TARGET: {formatNumber(target, 1)}
@@ -92,7 +100,7 @@ export function FuelHeroCard({
           />
         ) : (
           <Text style={[Typography.body, styles.hint, { color: theme.textMuted }]}>
-            Add at least two full-tank fills to see a trend.
+            {efficiencyHint(fullTankCount)}
           </Text>
         )}
         <View style={styles.chartScale}>

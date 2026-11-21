@@ -2,7 +2,16 @@ import type { DocumentDraft, NewDocument } from '@/types/document';
 import type { FuelDraft, NewFuelLog } from '@/types/fuel';
 import type { MechanicVisitDraft, NewMechanicVisit } from '@/types/mechanic';
 import type { MaintenanceDraft, NewMaintenanceLog } from '@/types/maintenance';
+import type {
+  PmsItemDraft,
+  PmsItemFieldErrors,
+  PmsItemUpdate,
+} from '@/types/pms';
 import type { NewVehicle, VehicleDraft } from '@/types/vehicle';
+import type { DistanceUnit } from '@/types/preferences';
+
+import { distanceToKm, distanceUnitLabel, formatDistance } from './format';
+import { toDays } from './pms';
 
 export type VehicleFieldErrors = Partial<Record<keyof VehicleDraft, string>>;
 
@@ -28,18 +37,26 @@ export function validateVehicleDraft(draft: VehicleDraft): ValidDraft | InvalidD
 
   if (Object.keys(errors).length > 0 || odometer === null) return { ok: false, errors };
 
-  return { ok: true, value: { name, plate: plate.length > 0 ? plate : null, odometer } };
+  return {
+    ok: true,
+    value: {
+      name,
+      plate: plate.length > 0 ? plate : null,
+      odometer,
+      transmissionType: 'automatic',
+      isLiquidCooled: false,
+      onboardingCompleted: true,
+    },
+  };
 }
 
 export function validateOdometerUpdate(
-  raw: string,
-  current: number
+  raw: string
 ): { ok: true; value: number } | { ok: false; error: string } {
   const next = parseOdometer(raw);
 
   if (next === null) return { ok: false, error: 'Enter a valid number.' };
   if (next < 0) return { ok: false, error: 'Enter a value of 0 or more.' };
-  if (next < current) return { ok: false, error: 'Cannot be lower than the current reading.' };
 
   return { ok: true, value: next };
 }
@@ -60,6 +77,13 @@ export function isValidDate(raw: string): boolean {
     date.getMonth() === month - 1 &&
     date.getDate() === day
   );
+}
+
+function todayDateKey(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
 }
 
 function parseNonNegative(raw: string): number | null {
@@ -142,6 +166,7 @@ export function validateMaintenanceDraft(
       nextDueKm,
       nextDueDate: nextDueDate === '' ? null : nextDueDate,
       diy: draft.diy,
+      pmsItemId: draft.pmsItemId ?? null,
     },
   };
 }
@@ -222,6 +247,66 @@ export function validateDocumentDraft(
       cost,
       notes: notes === '' ? null : notes,
       photoUri: draft.photoUri,
+    },
+  };
+}
+
+function parseWholeNumber(raw: string): number | null {
+  const value = parseOdometer(raw);
+  return value === null || !Number.isInteger(value) ? null : value;
+}
+
+type ValidPmsItemDraft = { ok: true; value: PmsItemUpdate };
+type InvalidPmsItemDraft = { ok: false; errors: PmsItemFieldErrors };
+
+export function validatePmsItemDraft(
+  draft: PmsItemDraft,
+  today: string = todayDateKey(),
+  distanceUnit: DistanceUnit = 'km'
+): ValidPmsItemDraft | InvalidPmsItemDraft {
+  const errors: PmsItemFieldErrors = {};
+  const label = draft.label.trim();
+  const km = draft.intervalKm.trim() === '' ? null : parseWholeNumber(draft.intervalKm);
+  const amount = draft.intervalValue.trim() === '' ? null : parseWholeNumber(draft.intervalValue);
+  const lastDoneOdometer =
+    draft.lastDoneOdometer.trim() === '' ? null : parseNonNegative(draft.lastDoneOdometer);
+  const lastDoneDate = draft.lastDoneDate.trim();
+  const days = amount === null ? null : toDays(amount, draft.intervalUnit);
+  const unitLabel = distanceUnitLabel(distanceUnit);
+
+  if (draft.isCustom && label.length === 0) errors.label = 'Enter a name for this item.';
+  if (draft.intervalKm.trim() !== '' && (km === null || km <= 0)) {
+    errors.intervalKm = 'Enter a whole number greater than 0.';
+  } else if (km !== null && distanceToKm(km, distanceUnit) > 1000000) {
+    errors.intervalKm = `Enter ${formatDistance(1000000, distanceUnit, 0)} ${unitLabel} or less.`;
+  }
+  if (draft.intervalValue.trim() !== '' && (amount === null || amount <= 0)) {
+    errors.intervalValue = 'Enter a whole number greater than 0.';
+  } else if (days !== null && days > 3650) {
+    errors.intervalValue = 'Enter 10 years or less.';
+  }
+  if (km === null && days === null) {
+    errors.intervalValue = `Set an interval in ${unitLabel}, in time, or both.`;
+  }
+  if (draft.lastDoneOdometer.trim() !== '' && lastDoneOdometer === null) {
+    errors.lastDoneOdometer = 'Enter an odometer value of 0 or more.';
+  }
+  if (lastDoneDate !== '' && !isValidDate(lastDoneDate)) {
+    errors.lastDoneDate = 'Use a valid date in YYYY-MM-DD format.';
+  } else if (lastDoneDate !== '' && lastDoneDate > today) {
+    errors.lastDoneDate = 'Last done cannot be in the future.';
+  }
+
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: {
+      label,
+      intervalKm: km,
+      intervalDays: days,
+      lastDoneOdometer,
+      lastDoneDate: lastDoneDate === '' ? null : lastDoneDate,
     },
   };
 }

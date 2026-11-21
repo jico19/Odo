@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/app-header';
@@ -28,7 +28,7 @@ import {
 export default function FuelScreen() {
   const theme = useTheme();
   const { status: vehicleStatus, vehicle } = useVehicle();
-  const { status, logs, error, retry, create, update } = useFuelLogs(vehicle?.id ?? 0);
+  const { status, logs, error, retry, create, update, remove } = useFuelLogs(vehicle?.id ?? 0);
   const [editor, setEditor] = useState<FuelLog | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
   const [filter, setFilter] = useState<FuelFilter>('all');
@@ -39,6 +39,7 @@ export default function FuelScreen() {
 
   const stats = useMemo(() => calculateFuelStats(logs), [logs]);
   const trend = useMemo(() => getEfficiencyTrendPercent(stats, today), [stats, today]);
+  const fullTankCount = useMemo(() => logs.filter((log) => log.fullTank).length, [logs]);
   const efficiencies = useMemo(() => getLogEfficiencies(stats, logs), [stats, logs]);
   const monthlyLiters = useMemo(
     () =>
@@ -71,6 +72,16 @@ export default function FuelScreen() {
     setEditor(null);
   }
 
+  function handleDelete() {
+    if (editor === null) return;
+    try {
+      remove(editor.id);
+      setEditor(null);
+    } catch {
+      Alert.alert('Could not delete the fuel log. Try again.');
+    }
+  }
+
   function handleQuickSave(input: NewFuelLog) {
     create(input);
     setQuickOpen(false);
@@ -98,6 +109,7 @@ export default function FuelScreen() {
           average={stats.averageKmPerLiter}
           series={stats.kmPerLiterSeries}
           trend={trend}
+          fullTankCount={fullTankCount}
           trough={trough}
         />
 
@@ -111,9 +123,7 @@ export default function FuelScreen() {
         {logs.length === 0 ? (
           <EmptyState
             icon="car-sport-outline"
-            message="No fuel logs yet."
-            actionLabel="Log your first fill-up"
-            onAction={() => setQuickOpen(true)}
+            message="Tap + to log your first fuel fill-up."
           />
         ) : filteredLogs.length === 0 ? (
           <Text style={[Typography.body, styles.noMatches, { color: theme.textMuted }]}>
@@ -148,6 +158,7 @@ export default function FuelScreen() {
           initialLog={editor}
           onClose={() => setEditor(null)}
           onSave={handleSave}
+          onDelete={handleDelete}
         />
       ) : null}
     </SafeAreaView>

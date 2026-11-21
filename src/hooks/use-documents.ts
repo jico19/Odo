@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { ensureDatabase } from '@/db/database';
 import {
@@ -13,6 +13,8 @@ import type { Document, NewDocument } from '@/types/document';
 import { deleteQuietly } from '@/utils/app-files';
 import { cancelDocumentReminders, syncDocumentReminders } from '@/utils/notifications';
 
+import { useDataSync, useDatabaseReload } from './use-data-sync';
+
 type DocumentStatus = 'loading' | 'ready' | 'error';
 
 function toErrorMessage(error: unknown): string {
@@ -20,6 +22,7 @@ function toErrorMessage(error: unknown): string {
 }
 
 export function useDocuments() {
+  const { notifyDataChanged } = useDataSync();
   const [status, setStatus] = useState<DocumentStatus>('loading');
   const [documents, setDocuments] = useState<Document[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -54,15 +57,16 @@ export function useDocuments() {
     };
   }, [refresh]);
 
-  useEffect(() => load(), [load]);
+  useDatabaseReload(load);
 
   const create = useCallback(
     (input: NewDocument) => {
       const created = insertDocument(input);
       refresh();
+      notifyDataChanged();
       return created;
     },
-    [refresh]
+    [notifyDataChanged, refresh]
   );
 
   const update = useCallback(
@@ -75,9 +79,10 @@ export function useDocuments() {
         void deleteQuietly(existing.photoUri);
       }
       refresh();
+      notifyDataChanged();
       return updated;
     },
-    [refresh]
+    [notifyDataChanged, refresh]
   );
 
   const remove = useCallback(
@@ -87,8 +92,9 @@ export function useDocuments() {
       if (existing !== null) void deleteQuietly(existing.photoUri);
       void cancelDocumentReminders(id);
       refresh();
+      notifyDataChanged();
     },
-    [refresh]
+    [notifyDataChanged, refresh]
   );
 
   const renew = useCallback(
@@ -108,9 +114,10 @@ export function useDocuments() {
         renewedFromId: previous.id,
       });
       refresh();
+      notifyDataChanged();
       return created;
     },
-    [refresh]
+    [notifyDataChanged, refresh]
   );
 
   const retry = useCallback(() => {

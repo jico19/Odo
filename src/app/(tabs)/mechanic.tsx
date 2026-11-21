@@ -11,6 +11,7 @@ import { MechanicRow } from '@/components/mechanic/mechanic-row';
 import { Button, EmptyState, SkeletonCard, SkeletonLine, StatCard } from '@/components/ui';
 import { MaxContentWidth, Spacing, Typography } from '@/constants/theme';
 import { useMechanicVisits } from '@/hooks/use-mechanic-visits';
+import { usePmsItems } from '@/hooks/use-pms-items';
 import { useTheme } from '@/hooks/use-theme';
 import { useVehicle } from '@/hooks/use-vehicle';
 import type { MechanicVisit, NewMechanicVisit } from '@/types/mechanic';
@@ -35,6 +36,7 @@ export default function MechanicScreen() {
     link,
     unlink,
   } = useMechanicVisits(vehicle?.id ?? 0);
+  const pms = usePmsItems(vehicle?.id ?? 0);
   const [editor, setEditor] = useState<Editor>(null);
   const [detail, setDetail] = useState<MechanicVisit | null>(null);
   const insets = useSafeAreaInsets();
@@ -42,7 +44,9 @@ export default function MechanicScreen() {
   const scrollPadding = fabBottom + Spacing.six + Spacing.three;
   const spend = useMemo(() => getMechanicSpend(visits), [visits]);
 
-  if (vehicleStatus === 'loading' || status === 'loading') return <MechanicSkeleton />;
+  if (vehicleStatus === 'loading' || status === 'loading' || pms.status === 'loading') {
+    return <MechanicSkeleton />;
+  }
   if (vehicle === null) return <Redirect href="/onboarding" />;
 
   function handleSave(input: NewMechanicVisit) {
@@ -102,9 +106,7 @@ export default function MechanicScreen() {
         {visits.length === 0 ? (
           <EmptyState
             icon="construct-outline"
-            message="Log a shop visit to keep its receipt and work history here."
-            actionLabel="Add visit"
-            onAction={() => setEditor('new')}
+            message="Tap + to log a shop visit with its receipt and work history."
           />
         ) : (
           <View>
@@ -127,6 +129,7 @@ export default function MechanicScreen() {
           visit={detail}
           linked={links.linked}
           unlinked={links.unlinked}
+          pmsItems={pms.items}
           onClose={() => setDetail(null)}
           onEdit={() => setEditor(detail)}
           onLink={(logId) => link(logId, detail.id)}

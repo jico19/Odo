@@ -1,101 +1,104 @@
-import { Ionicons } from '@react-native-vector-icons/ionicons';
-import { Redirect, router } from 'expo-router';
-import { useState } from 'react';
+import { router, Redirect } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Button, Input } from '@/components/ui';
-import { MaxContentWidth, Radius, Spacing, Typography } from '@/constants/theme';
+import { BikeStep } from '@/components/onboarding/bike-step';
+import { DrivetrainStep } from '@/components/onboarding/drivetrain-step';
+import { PmsStep } from '@/components/onboarding/pms-step';
+import { RemindersStep } from '@/components/onboarding/reminders-step';
+import { StepIndicator } from '@/components/onboarding/step-indicator';
+import { EditPmsItemSheet } from '@/components/pms/edit-pms-item-sheet';
+import { Button } from '@/components/ui';
+import { MaxContentWidth, Spacing, Typography } from '@/constants/theme';
+import { useOnboarding } from '@/hooks/use-onboarding';
 import { useTheme } from '@/hooks/use-theme';
-import { useVehicle } from '@/hooks/use-vehicle';
 import type { VehicleDraft } from '@/types/vehicle';
-import { validateVehicleDraft, type VehicleFieldErrors } from '@/utils/validation';
-
-const EMPTY_DRAFT: VehicleDraft = { name: '', plate: '', odometer: '' };
 
 export default function OnboardingScreen() {
   const theme = useTheme();
-  const { status, vehicle, create } = useVehicle();
-  const [draft, setDraft] = useState<VehicleDraft>(EMPTY_DRAFT);
-  const [errors, setErrors] = useState<VehicleFieldErrors>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const flow = useOnboarding();
+  const editingItem = flow.editingItem;
 
-  if (status === 'loading') return null;
-  if (vehicle !== null) return <Redirect href="/dashboard" />;
+  if (flow.status === 'loading') return null;
+  if (flow.vehicle !== null) return <Redirect href="/dashboard" />;
 
-  function update(field: keyof VehicleDraft, value: string) {
-    setDraft((current) => ({ ...current, [field]: value }));
-    setErrors((current) => ({ ...current, [field]: undefined }));
-    setFormError(null);
+  function updateDraft(field: keyof VehicleDraft, value: string) {
+    flow.updateDraft(field, value);
+    if (field === 'odometer') flow.syncBaseline(value);
   }
 
-  function handleSubmit() {
-    const result = validateVehicleDraft(draft);
-    if (!result.ok) {
-      setErrors(result.errors);
-      return;
-    }
-
-    setSaving(true);
-    try {
-      create(result.value);
-      router.replace('/dashboard');
-    } catch (error: unknown) {
-      setFormError(error instanceof Error ? error.message : 'Could not save your bike.');
-      setSaving(false);
-    }
+  async function handleFinish() {
+    const completed = await flow.finish();
+    if (completed) router.replace('/dashboard');
   }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: theme.background }]}
+      edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
-          <Ionicons name="bicycle-outline" size={32} color={theme.accentInk} accessible={false} />
+        <StepIndicator step={flow.step} />
+
+        <View style={styles.step}>
+          {flow.step === 1 ? (
+            <BikeStep draft={flow.draft} errors={flow.errors} onUpdate={updateDraft} />
+          ) : null}
+          {flow.step === 2 ? (
+            <DrivetrainStep
+              transmission={flow.transmission}
+              isLiquidCooled={flow.isLiquidCooled}
+              error={flow.errors.transmission}
+              onTransmission={flow.setTransmission}
+              onLiquidCooled={flow.setLiquidCooled}
+            />
+          ) : null}
+          {flow.step === 3 ? (
+            <PmsStep
+              items={flow.items}
+              error={flow.errors.pms}
+              onEdit={flow.openItemEditor}
+              onAdd={flow.addCustomItem}
+              onRemove={flow.removeItem}
+            />
+          ) : null}
+          {flow.step === 4 ? <RemindersStep /> : null}
         </View>
 
-        <Text style={[Typography.title, styles.title, { color: theme.text }]}>Set up your bike</Text>
-        <Text style={[Typography.body, styles.subtitle, { color: theme.textMuted }]}>
-          Add a name and your current odometer reading. You can log fuel and service after this.
-        </Text>
-
-        <View style={styles.form}>
-          <Input
-            label="Name"
-            value={draft.name}
-            onChangeText={(value) => update('name', value)}
-            placeholder="e.g. Ninja 400"
-            error={errors.name}
-            autoFocus
-          />
-          <Input
-            label="Plate (optional)"
-            value={draft.plate}
-            onChangeText={(value) => update('plate', value)}
-            placeholder="e.g. AB 1234"
-            error={errors.plate}
-          />
-          <Input
-            label="Starting odometer"
-            value={draft.odometer}
-            onChangeText={(value) => update('odometer', value)}
-            placeholder="0"
-            unit="km"
-            numeric
-            error={errors.odometer}
-          />
-        </View>
-
-        {formError !== null ? (
+        {flow.formError !== null ? (
           <Text style={[Typography.body, styles.formError, { color: theme.dangerInk }]}>
-            {formError}
+            {flow.formError}
           </Text>
         ) : null}
 
         <View style={styles.actions}>
-          <Button label="Save bike" onPress={handleSubmit} loading={saving} fullWidth />
+          {flow.step > 1 ? (
+            <View style={styles.button}>
+              <Button label="Back" variant="secondary" onPress={flow.back} fullWidth />
+            </View>
+          ) : null}
+          <View style={styles.button}>
+            {flow.step < 4 ? (
+              <Button label="Continue" onPress={flow.next} fullWidth />
+            ) : (
+              <Button
+                label="Go to Dashboard"
+                onPress={() => void handleFinish()}
+                loading={flow.saving}
+                fullWidth
+              />
+            )}
+          </View>
         </View>
       </ScrollView>
+
+      {editingItem !== null ? (
+        <EditPmsItemSheet
+          item={editingItem}
+          onClose={flow.closeItemEditor}
+          onSave={flow.saveItem}
+          onReset={() => flow.resetItem(editingItem.type)}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -109,30 +112,20 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
     paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.five,
-    paddingBottom: Spacing.four,
+    paddingTop: Spacing.four,
+    paddingBottom: Spacing.five,
   },
-  badge: {
-    width: 64,
-    height: 64,
-    borderRadius: Radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.four,
-  },
-  title: {
-    marginBottom: Spacing.two,
-  },
-  subtitle: {
-    marginBottom: Spacing.four,
-  },
-  form: {
-    gap: Spacing.three,
+  step: {
+    marginTop: Spacing.four,
   },
   formError: {
     marginTop: Spacing.three,
   },
   actions: {
-    marginTop: Spacing.four,
+    marginTop: Spacing.five,
+    gap: Spacing.two,
+  },
+  button: {
+    width: '100%',
   },
 });

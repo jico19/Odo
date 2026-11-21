@@ -1,9 +1,8 @@
-import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 
-import { BottomSheet, Button, DateField, Input } from '@/components/ui';
+import { BottomSheet, Button, DateField, Input, PhotoPreview } from '@/components/ui';
 import { Radius, Spacing, Typography } from '@/constants/theme';
 import { localDateKey } from '@/hooks/use-today';
 import { useTheme } from '@/hooks/use-theme';
@@ -105,10 +104,10 @@ export function MechanicFormSheet({
   }
 
   return (
-    <BottomSheet onClose={onClose} dismissLabel="Close mechanic visit form">
-      <Text style={[Typography.title, { color: theme.text }]}>
-        {initialVisit === null ? 'Add visit' : 'Edit visit'}
-      </Text>
+    <BottomSheet
+      onClose={onClose}
+      dismissLabel="Close mechanic visit form"
+      title={initialVisit === null ? 'Add visit' : 'Edit visit'}>
       <DateField
         label="Date"
         value={draft.date}
@@ -156,14 +155,12 @@ export function MechanicFormSheet({
 
       <View style={[styles.receiptGroup, { borderTopColor: theme.border }]}>
         <Text style={[Typography.label, { color: theme.textMuted }]}>Receipt</Text>
-        {draft.receiptUri !== null ? (
-          <Image
-            source={{ uri: draft.receiptUri }}
-            style={[styles.preview, { borderColor: theme.border }]}
-            contentFit="cover"
-            accessibilityLabel="Selected receipt photo"
-          />
-        ) : null}
+        <PhotoPreview
+          uri={draft.receiptUri}
+          label="receipt"
+          style={styles.preview}
+          contentFit="cover"
+        />
         <View style={styles.photoActions}>
           <Button
             label="Choose from gallery"
@@ -191,10 +188,10 @@ export function MechanicFormSheet({
       </View>
 
       <View style={styles.actions}>
-        <Button label="Cancel" onPress={onClose} variant="secondary" />
         <Button
           label={initialVisit === null ? 'Add visit' : 'Save changes'}
           onPress={handleSave}
+          fullWidth
         />
       </View>
 

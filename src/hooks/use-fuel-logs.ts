@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { ensureDatabase } from '@/db/database';
 import {
+  deleteFuelLog,
   insertFuelLogWithOdometer,
   listFuelLogs,
   updateFuelLogWithOdometer,
 } from '@/db/queries';
 import type { FuelLog, NewFuelLog } from '@/types/fuel';
 
+import { useDataSync, useDatabaseReload } from './use-data-sync';
 import { useVehicle } from './use-vehicle';
 
 type FuelStatus = 'loading' | 'ready' | 'error';
@@ -18,6 +20,7 @@ function toErrorMessage(error: unknown): string {
 
 export function useFuelLogs(vehicleId: number) {
   const { applyVehicle } = useVehicle();
+  const { notifyDataChanged } = useDataSync();
   const [status, setStatus] = useState<FuelStatus>('loading');
   const [logs, setLogs] = useState<FuelLog[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -43,16 +46,17 @@ export function useFuelLogs(vehicleId: number) {
     };
   }, [vehicleId]);
 
-  useEffect(() => load(), [load]);
+  useDatabaseReload(load);
 
   const create = useCallback(
     (input: NewFuelLog) => {
       const result = insertFuelLogWithOdometer(vehicleId, input);
       setLogs(listFuelLogs(vehicleId));
       applyVehicle(result.vehicle);
+      notifyDataChanged();
       return result.log;
     },
-    [applyVehicle, vehicleId]
+    [applyVehicle, notifyDataChanged, vehicleId]
   );
 
   const update = useCallback(
@@ -60,9 +64,19 @@ export function useFuelLogs(vehicleId: number) {
       const result = updateFuelLogWithOdometer(logId, vehicleId, input);
       setLogs(listFuelLogs(vehicleId));
       applyVehicle(result.vehicle);
+      notifyDataChanged();
       return result.log;
     },
-    [applyVehicle, vehicleId]
+    [applyVehicle, notifyDataChanged, vehicleId]
+  );
+
+  const remove = useCallback(
+    (logId: number) => {
+      deleteFuelLog(logId, vehicleId);
+      setLogs(listFuelLogs(vehicleId));
+      notifyDataChanged();
+    },
+    [notifyDataChanged, vehicleId]
   );
 
   const retry = useCallback(() => {
@@ -70,5 +84,5 @@ export function useFuelLogs(vehicleId: number) {
     void load();
   }, [load]);
 
-  return { status, logs, error, retry, create, update };
+  return { status, logs, error, retry, create, update, remove };
 }
